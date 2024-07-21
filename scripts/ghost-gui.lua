@@ -190,10 +190,12 @@ local update_gui_content = function(player)
                     game.print("Oops, no table found for " .. gt.ghost_name)
                 end
 
-                -- Set background tint
+                -- Do some calculations
                 local delta = #gt.ghosts - gt.storage.total_count
                 local craftable = player.get_craftable_count(gt.placed_by_item) or 0
+                local threshold = math.min(delta, craftable)
 
+                -- Set background tint
                 if delta > 0 then
                     if (delta - craftable) > 0 and fr.inner.style ~= "ghost_frame_red" then
                         fr.inner.style = "ghost_frame_red"
@@ -204,8 +206,9 @@ local update_gui_content = function(player)
                     fr.inner.style = "ghost_frame_green"
                 end
 
-                fr.inner.style.padding = 6
+                -- fr.inner.style.padding = 6
 
+                -- Update badge numbers
                 if tbl.ghost_count.number ~= #gt.ghosts then
                     tbl.ghost_count.number = #gt.ghosts
                 end
@@ -216,24 +219,24 @@ local update_gui_content = function(player)
                 -- Update the crafting buttons
 
                 -- Craft one button
-                if craftable > 1 then
+                if threshold > 1 then
                     tbl.craft_1.visible = true
                 else
                     tbl.craft_1.visible = false
                 end
 
                 -- Craft five button
-                if craftable > 5 then
+                if threshold > 5 then
                     tbl.craft_5.visible = true
                 else
                     tbl.craft_5.visible = false
                 end
 
                 -- Craft max button
-                if craftable >= 1 then
+                if threshold >= 1 then
                     tbl.craft_max.visible = true
-                    if tbl.craft_max.number ~= craftable then
-                        tbl.craft_max.number = craftable
+                    if tbl.craft_max.number ~= threshold then
+                        tbl.craft_max.number = threshold
                     end
                 else
                     tbl.craft_max.visible = false

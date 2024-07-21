@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.1.0
+Date: 2024-07-21
+  Changes:
+    - Changed behavior of crafting buttons to never go above the amount of items actually required
+---------------------------------------------------------------------------------------------------
 Version: 1.0.1
 Date: 2024-07-21
   Changes:
