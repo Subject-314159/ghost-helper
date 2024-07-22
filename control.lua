@@ -1,6 +1,7 @@
 local const = require("lib.const")
 local ghost_gui = require("scripts.ghost-gui")
 local ghost_tracker = require("scripts.ghost-tracker")
+local ghost_settings = require("scripts.ghost-settings")
 
 ---------------------------------------------------------------------------
 -- Init etc
@@ -8,7 +9,9 @@ local ghost_tracker = require("scripts.ghost-tracker")
 local init_all = function()
     ghost_tracker.init()
     ghost_gui.init()
+    ghost_settings.init()
 end
+
 script.on_init(function(e)
     init_all()
 end)

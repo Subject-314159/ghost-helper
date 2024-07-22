@@ -45,6 +45,7 @@ local index_surface = function()
     local srf = global.scan.data.surfaces[surface.index]
     srf.surface = surface
     srf.ghost_types = {}
+    srf.storages = {}
 
     -- ==================================================
     -- Get ghosts
@@ -128,6 +129,9 @@ local index_surface = function()
     local sf = surface.find_entities_filtered({
         type = const.types.INVENTORY
     })
+
+    -- Store in storages
+    srf.storages = table.deepcopy(sf)
 
     -- Store inventories in global
     for _, s in pairs(sf) do
@@ -258,12 +262,30 @@ ghost_tracker.tick_update = function()
                 table.insert(global.scan.surfaces, s.surface)
             end
         end
+
+        -- Update the history array
+        local tot = 0
+        for i = #global.track.history, 2, -1 do
+            local prev = global.track.history[i - 1]
+            global.track.history[i] = prev
+            tot = tot + prev
+        end
+
+        -- Update the average ticks
+        global.track.avg_num_ticks_per_cycle = math.ceil(tot / #global.track.history)
+
+        -- Reset the first entry
+        global.track.history[1] = 0
+
     elseif #global.scan.inventories == 0 then
         -- There are no more inventories to be searched
         index_surface()
     else
         scan_step()
     end
+
+    -- Increase the tick counter
+    global.track.history[1] = global.track.history[1] + 1
 
 end
 
@@ -287,13 +309,13 @@ ghost_tracker.init = function()
     --                         total_count = 1,
     --                         inventories = {{inventory}, {...}}
     --                     }
-    --                 }, {...}}
+    --                 }, {...}},
+    --                 storages = {{storage}, {...}}
     --             },
     --             {...}
     --         }
     --     }
     -- }
-    --              
 
     if not global.scan then
         global.scan = {}
@@ -309,6 +331,18 @@ ghost_tracker.init = function()
     end
     if not global.scan.data then
         global.scan.data = {} -- The resulting array with ghost entity data
+    end
+
+    -- Global track is used to keep track of misc stuff
+    if not global.track then
+        global.track = {}
+    end
+
+    if not global.track.history then
+        global.track.history = {}
+        for i = 1, 60, 1 do
+            global.track.history[i] = 0
+        end
     end
 
     -- global.data is the static array which can be used by external parties and a 1:1 structure copy of global.scan.data

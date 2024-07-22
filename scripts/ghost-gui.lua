@@ -332,9 +332,10 @@ local start_crafting = function(player, recipe, count)
 end
 
 local ping = function(player, entity)
-
-    player.print(entity.name .. ' at [gps=' .. (entity.position.x) .. ',' .. (entity.position.y) .. ',' ..
-                     entity.surface.name .. ']')
+    if entity and entity.valid then
+        player.print(entity.name .. ' at [gps=' .. (entity.position.x) .. ',' .. (entity.position.y) .. ',' ..
+                         entity.surface.name .. ']')
+    end
 end
 
 local process_gui_action = function(element, player, action)

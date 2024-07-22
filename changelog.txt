@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.1.1
+Date: 2024-07-22
+  Features:
+    - Added command /gh_stats
+  Bugfixes:
+    - Prevent crash when trying to ping the location of a ghost or storage that no longer exists
+---------------------------------------------------------------------------------------------------
 Version: 1.1.0
 Date: 2024-07-21
   Changes:
