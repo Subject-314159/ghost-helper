@@ -1,4 +1,20 @@
 data:extend({{
+    type = "bool-setting",
+    name = "gh_enable",
+    setting_type = "runtime-global",
+    default_value = 500,
+    minimum_value = 1,
+    maximum_value = 10000,
+    order = "a1"
+}, {
+    type = "int-setting",
+    name = "index-chunks-per-tick",
+    setting_type = "runtime-global",
+    default_value = 500,
+    minimum_value = 1,
+    maximum_value = 10000,
+    order = "a1"
+}, {
     type = "int-setting",
     name = "scan-actions-per-tick",
     setting_type = "runtime-global",

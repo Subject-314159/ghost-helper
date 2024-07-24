@@ -1,6 +1,7 @@
 local mod_gui = require("mod-gui")
 local const = require("lib.const")
-local helper = require("scripts.ghost-tracker")
+local util = require("lib.util")
+local helper = require("scripts.ghost-tracker-new")
 local global_player = require("scripts.global-player")
 
 local ghost_gui = {}
@@ -17,9 +18,27 @@ local update_gui_content = function(player)
         return
     end
 
+    -- Show/hide content based on global enable/disable
+    if settings.global["gh_enable"].value then
+        gui.progress.visible = true
+        gui.pane.visible = true
+        gui.disabled.visible = false
+    else
+        gui.progress.visible = false
+        gui.pane.visible = false
+        gui.disabled.visible = true
+    end
+
     -- Get the information to work with
     local data = helper.get_ghosts_grouped(player)
     local tb_str = "" -- TEMP
+
+    -- Set the generic progress bar
+    local progress = 0
+    if global.settings.surfaces and global.scan.surfaces then
+        progress = (#global.settings.surfaces - #global.scan.surfaces) / #global.settings.surfaces
+    end
+    gui.progress.value = progress
 
     -- Remove surface frames in the gui if there are no entries in the data array for it
     for _, frm in pairs(gui.pane.main_frame.children) do
@@ -65,8 +84,8 @@ local update_gui_content = function(player)
             -- Loop through labels and remove ones no longer applicable
             for _, lbl in pairs(srf_frm.children) do
                 local exists = false
-                for _, gt in pairs(srf.ghost_types) do
-                    if lbl.name == const.gui.main.surface.ghost_frame.PREFIX .. gt.ghost_name then
+                for itm, gt in pairs(srf.ghost_types) do
+                    if lbl.name == const.gui.main.surface.ghost_frame.PREFIX .. itm then
                         exists = true
                     end
                 end
@@ -76,11 +95,11 @@ local update_gui_content = function(player)
             end
 
             -- Loop through ghost types on this surface and show label
-            for _, gt in pairs(srf.ghost_types) do
+            for itm, gt in pairs(srf.ghost_types) do
                 local exists = false
                 local fr
                 for _, frm in pairs(srf_frm.children) do
-                    if frm.name == const.gui.main.surface.ghost_frame.PREFIX .. gt.ghost_name then
+                    if frm.name == const.gui.main.surface.ghost_frame.PREFIX .. itm then
                         fr = frm
                         exists = true
                     end
@@ -88,12 +107,12 @@ local update_gui_content = function(player)
                 if not exists then
                     local tag = {
                         surface_index = srf.surface.index,
-                        entity = gt.ghost_name
+                        entity = itm
                     }
                     -- Create the container frame
                     fr = srf_frm.add {
                         type = "frame",
-                        name = const.gui.main.surface.ghost_frame.PREFIX .. gt.ghost_name, -- Ghost Frame
+                        name = const.gui.main.surface.ghost_frame.PREFIX .. itm, -- Ghost Frame
                         direction = "vertical",
                         style = "ghost_frame"
                     }
@@ -115,7 +134,7 @@ local update_gui_content = function(player)
                     bt.add { -- The icon of the actual ghost entity
                         type = "sprite-button",
                         name = "ghost_item",
-                        sprite = ("item/" .. gt.placed_by_item),
+                        sprite = ("item/" .. itm),
                         style = "recipe_slot_button",
                         raise_hover_events = true,
                         tags = tag
@@ -168,12 +187,12 @@ local update_gui_content = function(player)
                 -- Update the buttons in the frame (but only if the numbers changed)
                 local tbl = fr.inner.bt
                 if not tbl then
-                    game.print("Oops, no table found for " .. gt.ghost_name)
+                    game.print("Oops, no table found for " .. itm)
                 end
 
                 -- Do some calculations
                 local delta = #gt.ghosts - gt.storage.total_count
-                local craftable = player.get_craftable_count(gt.placed_by_item) or 0
+                local craftable = player.get_craftable_count(itm) or 0
                 local threshold = math.min(delta, craftable)
 
                 -- Set background tint
@@ -188,8 +207,9 @@ local update_gui_content = function(player)
                 end
 
                 -- Update badge numbers
-                if tbl.ghost_count.number ~= #gt.ghosts then
-                    tbl.ghost_count.number = #gt.ghosts
+                local cnt = util.arr_cnt(gt.ghosts)
+                if tbl.ghost_count.number ~= cnt then
+                    tbl.ghost_count.number = cnt
                 end
                 if tbl.storage.number ~= gt.storage.total_count then
                     tbl.storage.number = gt.storage.total_count
@@ -243,6 +263,13 @@ local build_gui = function(player)
     }
 
     gui.add {
+        type = "progressbar",
+        name = "progress",
+        value = 0.5
+    }
+    gui.progress.style.horizontally_stretchable = "on"
+    gui.progress.style.height = 10
+    gui.add {
         type = "scroll-pane",
         name = "pane",
         horizontal_scroll_policy = "never",
@@ -260,6 +287,11 @@ local build_gui = function(player)
         type = "label",
         name = "no_ghosts",
         caption = "No ghosts found in enabled surfaces"
+    }
+    gui.add {
+        type = "label",
+        name = "disabled",
+        caption = "Ghost Helper is disabled in mod settings"
     }
 
     -- Store reference to gui in global
@@ -325,7 +357,7 @@ local process_gui_action = function(element, player, action)
                 gp.track_start = game.tick
                 if settings.global["announce-chat"].value then
                     if gt then
-                        player.print("Locations of ghost " .. gt.ghost_name)
+                        player.print("Locations of ghost " .. element.tags.entity)
                         for _, g in pairs(gt.ghosts) do
                             ping(player, g)
                         end
@@ -346,7 +378,7 @@ local process_gui_action = function(element, player, action)
                 gp.track_start = game.tick
                 if settings.global["announce-chat"].value then
                     if gt then
-                        player.print("Locations of storage containing " .. gt.ghost_name)
+                        player.print("Locations of storage containing " .. element.tags.entity)
                         for _, inv in pairs(gt.storage.inventories) do
                             local ent
                             if inv.entity_owner then

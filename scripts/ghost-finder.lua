@@ -125,8 +125,8 @@ local update_arrows = function(p, gp)
     -- Draw new arrows, but only within the time to live window
     if game.tick <= gp.track_start + (settings.global["arrow-time-to-live"].value * 60) then
         -- Only if the player is on the same surface
-        if p.character and p.character.surface == gp.track_entities[1].surface then
-            for _, e in pairs(gp.track_entities) do
+        for _, e in pairs(gp.track_entities) do
+            if p.character and p.character.surface == e.surface then
                 if e.valid then
                     -- Calculate the angle/distance between player and entity
                     local prop = calculate(p.character, e)

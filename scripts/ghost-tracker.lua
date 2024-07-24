@@ -167,7 +167,8 @@ local scan_step = function()
         -- Search the current inventory for the current ghost
         local inv = global.scan.inventories[#global.scan.inventories]
         if inv and inv.valid then
-            local gt = srf.ghost_types[global.scan.track.ghost_idx]
+            local idx = srf.ghost_indexes[global.scan.track.ghost_idx]
+            local gt = srf.ghost_types[idx]
 
             local cnt = inv.get_item_count(gt.placed_by_item) -- For now assume that an item always places their equivalent entity
             if cnt > 0 then
@@ -269,7 +270,7 @@ ghost_tracker.tick_update = function()
             end
         end
 
-        -- Update the history array
+        -- Update the tick count history array
         local tot = 0
         for i = #global.track.history, 2, -1 do
             local prev = global.track.history[i - 1]

@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.3.0
+Date: 2024-07-25
+  Features:
+    - Increased UPS performance by throttling surface scan in max nr of chunks per tick
+    - Added progress bar in the GUI to display scan & index progress
+---------------------------------------------------------------------------------------------------
 Version: 1.2.0
 Date: 2024-07-23
   Features:
