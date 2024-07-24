@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.0
+Date: 2024-07-23
+  Features:
+    - Added arrows & boxes when clicking on ghosts/storage buttons in the GUI
+  Bugfixes:
+    - Solved crash when trying to re-create console command
+---------------------------------------------------------------------------------------------------
 Version: 1.1.1
 Date: 2024-07-22
   Features:

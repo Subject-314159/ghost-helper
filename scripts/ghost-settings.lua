@@ -22,18 +22,22 @@ ghost_settings.print_stats = function(player_index)
 
     -- Print stats
     player.print("Avg # ticks for full scan: " .. global.track.avg_num_ticks_per_cycle)
+    player.print("Total # scan actions for full scan: " .. num_ghosts * num_chests)
     player.print("# ghosts total: " .. num_ghosts)
     player.print("# chests total: " .. num_chests)
-    player.print("Total # scan actions for full scan: " .. num_ghosts * num_chests)
     player.print("# scan actions per tick: " .. settings.global["scan-actions-per-tick"].value .. " (mod setting)")
 
 end
 
 function ghost_settings.init()
 
+    local comm = commands.commands
+
     -- Add debug commands
-    commands.add_command("gh_stats", "Resets the konami state for the given player", function(command)
-        ghost_settings.print_stats(command.player_index)
-    end)
+    if not comm["gh_stats"] then
+        commands.add_command("gh_stats", "Resets the konami state for the given player", function(command)
+            ghost_settings.print_stats(command.player_index)
+        end)
+    end
 end
 return ghost_settings

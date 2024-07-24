@@ -2,14 +2,19 @@ local const = require("lib.const")
 local ghost_gui = require("scripts.ghost-gui")
 local ghost_tracker = require("scripts.ghost-tracker")
 local ghost_settings = require("scripts.ghost-settings")
+local ghost_finder = require("scripts.ghost-finder")
+local global_player = require("scripts.global-player")
 
 ---------------------------------------------------------------------------
 -- Init etc
 ---------------------------------------------------------------------------
 local init_all = function()
+    global_player.init()
+
     ghost_tracker.init()
     ghost_gui.init()
     ghost_settings.init()
+    ghost_finder.init()
 end
 
 script.on_init(function(e)
@@ -24,6 +29,7 @@ script.on_event(defines.events.on_tick, function()
     -- Do magic here
     ghost_tracker.tick_update()
     ghost_gui.tick_update()
+    ghost_finder.tick_update()
 end)
 
 local function get_top_parent_recursive(element)

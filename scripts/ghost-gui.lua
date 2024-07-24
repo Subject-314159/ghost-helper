@@ -1,22 +1,9 @@
 local mod_gui = require("mod-gui")
 local const = require("lib.const")
 local helper = require("scripts.ghost-tracker")
+local global_player = require("scripts.global-player")
 
 local ghost_gui = {}
-
-local init_player = function(player)
-    if not global.players then
-        global.players = {}
-    end
-    if not global.players[player.index] then
-        global.players[player.index] = {}
-    end
-end
-
-local get_global_player = function(player)
-    init_player(player)
-    return global.players[player.index]
-end
 
 local get_main_gui = function(player)
     local gui = player.gui.left[const.gui.main.FRAME]
@@ -117,12 +104,6 @@ local update_gui_content = function(player)
                         direction = "vertical"
                     }
 
-                    -- TEMP
-                    -- ifr.add {
-                    --     type = "label",
-                    --     name = "lbl"
-                    -- }
-
                     -- Create the table
                     local bt = ifr.add {
                         type = "table",
@@ -206,8 +187,6 @@ local update_gui_content = function(player)
                     fr.inner.style = "ghost_frame_green"
                 end
 
-                -- fr.inner.style.padding = 6
-
                 -- Update badge numbers
                 if tbl.ghost_count.number ~= #gt.ghosts then
                     tbl.ghost_count.number = #gt.ghosts
@@ -217,7 +196,6 @@ local update_gui_content = function(player)
                 end
 
                 -- Update the crafting buttons
-
                 -- Craft one button
                 if threshold > 1 then
                     tbl.craft_1.visible = true
@@ -241,12 +219,6 @@ local update_gui_content = function(player)
                 else
                     tbl.craft_max.visible = false
                 end
-
-                -- TEMP
-                -- if fr and fr.inner then
-                --     fr.inner.lbl.caption = gt.ghost_name .. " [ghosts:" .. #gt.ghosts .. "/storage:" ..
-                --                                gt.storage.total_count .. "]"
-                -- end
             end
         end
     end
@@ -274,7 +246,6 @@ local build_gui = function(player)
         type = "scroll-pane",
         name = "pane",
         horizontal_scroll_policy = "never",
-        -- vertical_scroll_policy = "auto-and-reserve-space",
         vertical_scroll_policy = "auto",
         style = "main_pane"
     }
@@ -292,7 +263,7 @@ local build_gui = function(player)
     }
 
     -- Store reference to gui in global
-    local global_player = get_global_player(player)
+    local global_player = global_player.get(player)
     global_player.gui = gui
 
     -- Decorate the main frame
@@ -339,20 +310,29 @@ local ping = function(player, entity)
 end
 
 local process_gui_action = function(element, player, action)
+
+    -- Get the global player
+    local gp = global_player.get(player)
+
     -- Define which element was clicked
     if element.name == "ghost_item" then
     elseif element.name == "ghost_count" then
         if action == "click" then
             if element.number > 0 then
                 local gt = helper.get_ghost_type_on_surface(element.tags.surface_index, element.tags.entity)
-                if gt then
-                    player.print("Locations of ghost " .. gt.ghost_name)
-                    for _, g in pairs(gt.ghosts) do
-                        ping(player, g)
+
+                gp.track_entities = gt.ghosts
+                gp.track_start = game.tick
+                if settings.global["announce-chat"].value then
+                    if gt then
+                        player.print("Locations of ghost " .. gt.ghost_name)
+                        for _, g in pairs(gt.ghosts) do
+                            ping(player, g)
+                        end
+                    else
+                        game.print(
+                            "Hmm for some reason we display a ghost button but there are no ghosts of this type on this surface")
                     end
-                else
-                    game.print(
-                        "Hmm for some reason we display a ghost button but there are no ghosts of this type on this surface")
                 end
             else
                 player.print("Ok this is awkward.. There are no ghosts of selected ghost type")
@@ -362,24 +342,28 @@ local process_gui_action = function(element, player, action)
         if action == "click" then
             if element.number > 0 then
                 local gt = helper.get_ghost_type_on_surface(element.tags.surface_index, element.tags.entity)
-                if gt then
-                    player.print("Locations of storage containing " .. gt.ghost_name)
-                    for _, inv in pairs(gt.storage.inventories) do
-                        local ent
-                        if inv.entity_owner then
-                            ent = inv.entity_owner
-                        elseif inv.player_owner then
-                            ent = inv.player_owner
+                gp.track_entities = gt.storage.entities
+                gp.track_start = game.tick
+                if settings.global["announce-chat"].value then
+                    if gt then
+                        player.print("Locations of storage containing " .. gt.ghost_name)
+                        for _, inv in pairs(gt.storage.inventories) do
+                            local ent
+                            if inv.entity_owner then
+                                ent = inv.entity_owner
+                            elseif inv.player_owner then
+                                ent = inv.player_owner
+                            end
+                            if ent then
+                                ping(player, ent)
+                            else
+                                player.print("Unknown entity")
+                            end
                         end
-                        if ent then
-                            ping(player, ent)
-                        else
-                            player.print("Unknown entity")
-                        end
+                    else
+                        game.print(
+                            "Hmm for some reason we display a ghost/storage button but there are no ghosts of this type on this surface")
                     end
-                else
-                    game.print(
-                        "Hmm for some reason we display a ghost button but there are no ghosts of this type on this surface")
                 end
             else
                 player.print("No items of this ghost type in storage")
@@ -418,13 +402,6 @@ ghost_gui.init = function()
     if game then
         for _, p in pairs(game.players) do
             destroy_gui(p)
-        end
-    end
-
-    -- Init player array
-    if game then
-        for _, p in pairs(game.players) do
-            init_player(p)
         end
     end
 

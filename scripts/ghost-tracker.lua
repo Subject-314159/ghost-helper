@@ -96,7 +96,8 @@ local index_surface = function()
                     ghosts = {g},
                     storage = {
                         total_count = 0,
-                        inventories = {}
+                        inventories = {},
+                        entities = {}
                     }
                 }
                 table.insert(srf.ghost_types, prop)
@@ -156,9 +157,6 @@ local scan_step = function()
     local action = 1
 
     while action <= settings.global["scan-actions-per-tick"].value do
-        -- game.print("Action #" .. action .. "/" .. settings.global["scan-actions-per-tick"].value .. " on game tick " ..
-        --                game.tick .. ", searching for ghost #" .. global.scan.track.ghost_idx .. "/" .. #srf.ghost_types ..
-        --                " with " .. #global.scan.inventories .. " inventories remaining")
         -- Early exit if there are no more inventories to process
         if #global.scan.inventories == 0 then
             -- Pop the current surface because we're done
@@ -176,6 +174,14 @@ local scan_step = function()
                 -- The inventory contains the ghost item, add the inventory to the data array
                 gt.storage.total_count = gt.storage.total_count + cnt
                 table.insert(gt.storage.inventories, table.deepcopy(inv)) -- Deepcopy the inv because it will be popped afterwards
+                local ste = inv.entity_owner
+                if ste and gt.storage.entities then
+                    table.insert(gt.storage.entities, ste)
+                end
+                local stp = inv.player_owner
+                if stp and stp.character and gt.storage.entities then
+                    table.insert(gt.storage.entities, stp.character)
+                end
             end
         end
         -- Increase the ghost index
@@ -307,7 +313,8 @@ ghost_tracker.init = function()
     --                     ghosts = {{ghost}, {...}},
     --                     storage = {
     --                         total_count = 1,
-    --                         inventories = {{inventory}, {...}}
+    --                         inventories = {{inventory}, {...}},
+    --                         storages = {{storage}, {...}}
     --                     }
     --                 }, {...}},
     --                 storages = {{storage}, {...}}
