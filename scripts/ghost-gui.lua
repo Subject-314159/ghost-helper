@@ -197,7 +197,7 @@ local update_gui_content = function(player)
 
                 -- Do some calculations
                 local delta = util.arr_cnt(gt.ghosts) - gt.storage.total_count
-                local craftable = player.get_craftable_count(itm) or 0
+                local craftable = (player.controller_type ~= defines.controllers.editor) and (player.get_craftable_count(itm) or 0) or 0
                 local threshold = math.min(delta, craftable)
 
                 -- Set background tint
