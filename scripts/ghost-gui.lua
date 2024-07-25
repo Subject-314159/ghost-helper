@@ -1,7 +1,7 @@
 local mod_gui = require("mod-gui")
 local const = require("lib.const")
 local util = require("lib.util")
-local helper = require("scripts.ghost-tracker-new")
+local helper = require("scripts.ghost-tracker")
 local global_player = require("scripts.global-player")
 
 local ghost_gui = {}
@@ -34,11 +34,16 @@ local update_gui_content = function(player)
     local tb_str = "" -- TEMP
 
     -- Set the generic progress bar
-    local progress = 0
-    if global.settings.surfaces and global.scan.surfaces then
-        progress = (#global.settings.surfaces - #global.scan.surfaces) / #global.settings.surfaces
+    local progress, ticks_required = helper.get_progress()
+
+    if ticks_required == -1 or ticks_required >
+        const.settings.map.PROGRESS_BAR_TICKS[settings.global["gh_show-progress-bar"].value] then
+        gui.progress.visible = true
+        gui.progress.value = progress
+    else
+        -- Hide the progress bar if update cycle is less than 1sec
+        gui.progress.visible = false
     end
-    gui.progress.value = progress
 
     -- Remove surface frames in the gui if there are no entries in the data array for it
     for _, frm in pairs(gui.pane.main_frame.children) do
@@ -191,7 +196,7 @@ local update_gui_content = function(player)
                 end
 
                 -- Do some calculations
-                local delta = #gt.ghosts - gt.storage.total_count
+                local delta = util.arr_cnt(gt.ghosts) - gt.storage.total_count
                 local craftable = player.get_craftable_count(itm) or 0
                 local threshold = math.min(delta, craftable)
 
@@ -355,7 +360,7 @@ local process_gui_action = function(element, player, action)
 
                 gp.track_entities = gt.ghosts
                 gp.track_start = game.tick
-                if settings.global["announce-chat"].value then
+                if settings.global["gh_announce-chat"].value then
                     if gt then
                         player.print("Locations of ghost " .. element.tags.entity)
                         for _, g in pairs(gt.ghosts) do
@@ -376,7 +381,7 @@ local process_gui_action = function(element, player, action)
                 local gt = helper.get_ghost_type_on_surface(element.tags.surface_index, element.tags.entity)
                 gp.track_entities = gt.storage.entities
                 gp.track_start = game.tick
-                if settings.global["announce-chat"].value then
+                if settings.global["gh_announce-chat"].value then
                     if gt then
                         player.print("Locations of storage containing " .. element.tags.entity)
                         for _, inv in pairs(gt.storage.inventories) do

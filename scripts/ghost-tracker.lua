@@ -1,7 +1,18 @@
 local const = require("lib.const")
+local util = require("lib.util")
 require("util")
 
 local ghost_tracker = {}
+
+------------------------------------------------------------------------------------------
+-- Helper functions
+------------------------------------------------------------------------------------------
+
+local function silent(message)
+    game.print(message, {
+        sound = defines.print_sound.never
+    })
+end
 
 local pop_current_surface = function()
     global.scan.surfaces[#global.scan.surfaces] = nil
@@ -11,208 +22,55 @@ local get_current_surface = function()
     return global.scan.surfaces[#global.scan.surfaces]
 end
 
-local index_surface = function()
-    -- ==================================================
-    -- Early exit checks
-    -- ==================================================
-
-    -- Early exit if no surface found
-    if #global.scan.surfaces == 0 then
-        game.print("Hmm we should never have gotten here")
-        return
+local get_data_surface = function(surface)
+    if not global.scan.data.surfaces[surface.index] then
+        global.scan.data.surfaces[surface.index] = {}
     end
+    return global.scan.data.surfaces[surface.index]
+end
 
-    -- Early exit if there are still inventories to be processed
-    if #global.scan.inventories > 0 then
-        game.print("Hmm there are still inventories to be searched")
-        return
-    end
-
-    -- ==================================================
-    -- Prepare global array
-    -- ==================================================
-
-    -- Get the surface
+local pop_current_chunk = function()
     local surface = get_current_surface()
-
-    -- Create scan.data index for the surface
-    if not global.scan.data.surfaces then
-        global.scan.data.surfaces = {}
-    end
-    global.scan.data.surfaces[surface.index] = {}
-
-    -- Get the pointer & init array
-    local srf = global.scan.data.surfaces[surface.index]
-    srf.surface = surface
-    srf.ghost_types = {}
-    srf.storages = {}
-
-    -- ==================================================
-    -- Get ghosts
-    -- ==================================================
-
-    -- Set ghost tracker index
-    global.scan.track.ghost_idx = 1
-
-    -- Get all ghosts on the surface
-    local gf = surface.find_entities_filtered({
-        type = const.types.GHOST_ENTITY
-    })
-
-    -- Add each ghost to global array under their own type
-    if gf and #gf > 0 then
-        for _, g in pairs(gf) do
-            -- Find the related ghost name in the array
-            local exists = false
-            for _, dg in pairs(srf.ghost_types) do
-                if dg.ghost_name == g.ghost_name then
-                    table.insert(dg.ghosts, g)
-                    exists = true
-                end
-            end
-
-            -- Add new entry if not found
-            if not exists then
-
-                -- Try to get the item related to the ghost (it can be that the ghost entity does not have an item 1:1 related to this)
-                -- TODO: Current situation results in double ghosts for e.g. curved-rails and straight-rails
-                -- This is because the array is created on unique ghost_name and not on placed_by_item
-                local itm
-                if game.item_prototypes[g.ghost_name] then
-                    itm = g.ghost_name
-                else
-                    if game.entity_prototypes[g.ghost_name] then
-                        local ep = game.entity_prototypes[g.ghost_name]
-                        if ep.items_to_place_this then
-                            itm = ep.items_to_place_this[1].name
-                        end
-                    end
-                end
-
-                -- Make the array
-                local prop = {
-                    ghost_name = g.ghost_name,
-                    placed_by_item = itm,
-                    ghosts = {g},
-                    storage = {
-                        total_count = 0,
-                        inventories = {},
-                        entities = {}
-                    }
-                }
-                table.insert(srf.ghost_types, prop)
-            end
-        end
-    else
-        -- There are no ghosts on this surface, pop the surface since we don't need it and early exit 
-        pop_current_surface()
-        return
-    end
-
-    -- ==================================================
-    -- Get inventories
-    -- ==================================================
-
-    -- Set up inventories array
-    if not global.scan.inventories then
-        global.scan.inventories = {}
-    end
-
-    -- Add all character inventories of that surface to the array
-    for _, p in pairs(game.players) do
-        if p.surface == surface and p.character then
-            local inv = p.get_inventory(defines.inventory.character_main)
-            table.insert(global.scan.inventories, inv)
-        end
-    end
-
-    -- Get all storage entities
-    local sf = surface.find_entities_filtered({
-        type = const.types.INVENTORY
-    })
-
-    -- Store in storages
-    srf.storages = table.deepcopy(sf)
-
-    -- Store inventories in global
-    for _, s in pairs(sf) do
-        local inv = s.get_inventory(defines.inventory.chest)
-        table.insert(global.scan.inventories, inv)
-    end
-
-    -- Check if there are any inventories on this surface after the scan
-    -- It is possible that there are no chests and no characters on this surface
-    if #global.scan.inventories == 0 then
-        -- Pop the surface since we don't need to scan it anymore
-        pop_current_surface()
-    end
+    local srf = get_data_surface(surface.surface)
+    srf.chunk_count = (srf.chunk_count or 0) + 1
+    surface.chunks[#surface.chunks] = nil
 end
 
-local scan_step = function()
-    -- Get some variables to work with
-    local surface = get_current_surface() -- The current surface that we are processing
-    local srf = global.scan.data.surfaces[surface.index] -- The data array of this current surface
+local get_current_chunk = function()
+    local surface = get_current_surface()
+    -- return surface.chunks[#surface.chunks]
+    return surface.chunks()
+end
 
-    -- Set step counter
-    local action = 1
+------------------------------------------------------------------------------------------
+-- Main scan loop
+------------------------------------------------------------------------------------------
 
-    while action <= settings.global["scan-actions-per-tick"].value do
-        -- Early exit if there are no more inventories to process
-        if #global.scan.inventories == 0 then
-            -- Pop the current surface because we're done
-            pop_current_surface()
-            return
-        end
+---------- Update surfaces ----------
 
-        -- Search the current inventory for the current ghost
-        local inv = global.scan.inventories[#global.scan.inventories]
-        if inv and inv.valid then
-            local idx = srf.ghost_indexes[global.scan.track.ghost_idx]
-            local gt = srf.ghost_types[idx]
-
-            local cnt = inv.get_item_count(gt.placed_by_item) -- For now assume that an item always places their equivalent entity
-            if cnt > 0 then
-                -- The inventory contains the ghost item, add the inventory to the data array
-                gt.storage.total_count = gt.storage.total_count + cnt
-                table.insert(gt.storage.inventories, table.deepcopy(inv)) -- Deepcopy the inv because it will be popped afterwards
-                local ste = inv.entity_owner
-                if ste and gt.storage.entities then
-                    table.insert(gt.storage.entities, ste)
-                end
-                local stp = inv.player_owner
-                if stp and stp.character and gt.storage.entities then
-                    table.insert(gt.storage.entities, stp.character)
-                end
+local copy_clean_data = function()
+    -- Copy over the scanned data to the public data array and clear scan data array
+    global.data.surfaces = {}
+    if global.scan.data.surfaces and #global.scan.data.surfaces > 0 then
+        for _, srf in pairs(global.scan.data.surfaces) do
+            if #srf.ghost_indexes > 0 then
+                table.insert(global.data.surfaces, srf)
             end
         end
-        -- Increase the ghost index
-        global.scan.track.ghost_idx = global.scan.track.ghost_idx + 1
-
-        -- Reset ghost index if it exceeded the array length and pop the inventory array
-        if global.scan.track.ghost_idx > #srf.ghost_types then
-            global.scan.track.ghost_idx = 1
-            global.scan.inventories[#global.scan.inventories] = nil
-        end
-
-        -- Increase the action counter
-        action = action + 1
     end
-end
-
-ghost_tracker.get_ghosts_grouped = function(player)
-    -- Return the array
-    return global.data
-end
-
-ghost_tracker.get_ghost_type_on_surface = function(surface_index, ghost_name)
-    for i, gt in pairs(global.data.surfaces[surface_index].ghost_types) do
-        if gt.ghost_name == ghost_name then
-            return gt
-        end
-    end
+    log("Scanned data on tick " .. game.tick)
+    log(serpent.block(global.scan.data))
+    -- Clear scan data array
+    global.scan.data = {
+        surfaces = {}
+    }
 end
 
 local update_settings_surfaces = function()
+
+    -- Reset track total chunks to scan
+    global.track.total_chunks = 1
+
     -- Update global settings surfaces if there are new surfaces
     for _, s in pairs(game.surfaces) do
         local exists = false
@@ -224,7 +82,10 @@ local update_settings_surfaces = function()
         if not exists then
             local prop = {
                 scan = true,
-                surface = s
+                surface = s,
+                num_chunks = 0
+                -- num_ghosts = 0,
+                -- num_inventories = 0
             }
             table.insert(global.settings.surfaces, prop)
             game.print("[Ghost helper] New surface detected: " .. s.name)
@@ -232,43 +93,430 @@ local update_settings_surfaces = function()
         end
     end
 
-    -- Remove global settings surfaces if they no longer exists
+    -- Validate existing surfaces
     for _, ss in pairs(global.settings.surfaces) do
-        if ss and not ss.surface.valid then
+        if not ss.surface.valid then
+            -- Remove global settings surfaces if they no longer exists
             game.print("[Ghost helper] Surface no longer exists: " .. ss.name)
             ss = nil
+        elseif ss.scan then
+            -- Sum total number of chunks to be scanned
+            global.track.total_chunks = global.track.total_chunks + (ss.num_chunks or 0)
+        end
+    end
+    -- silent("Total chunks to scan: " .. global.track.total_chunks)
+
+end
+
+local generate_new_scan_surfaces = function()
+    -- Copy all active surfaces to the surfaces-to-be-scanned array
+    for _, s in pairs(global.settings.surfaces) do
+        if s.scan and s.surface.valid then
+            -- Generate base prop array
+            local prop = {
+                surface = s.surface,
+                chunks = s.surface.get_chunks(),
+                has_chunks = true,
+                chunks_indexed = 0
+                -- chunks = {}
+            }
+            -- local i = 1
+            -- for chunk in s.surface.get_chunks() do
+            --     prop.chunks[i] = chunk
+            --     i = i + 1
+            -- end
+            -- Add the array to surfaces
+            table.insert(global.scan.surfaces, prop)
+        end
+    end
+end
+
+local update_surfaces = function()
+    copy_clean_data()
+    update_settings_surfaces()
+    generate_new_scan_surfaces()
+end
+
+---------- Index surfaces by step ----------
+
+local get_item_that_places = function(ghost)
+    local itm
+    if game.item_prototypes[ghost.ghost_name] then
+        itm = ghost.ghost_name
+    else
+        if game.entity_prototypes[ghost.ghost_name] then
+            local ep = game.entity_prototypes[ghost.ghost_name]
+            if ep.items_to_place_this then
+                itm = ep.items_to_place_this[1].name
+            end
+        end
+    end
+    return itm
+end
+
+local add_scan_inventory = function(inv)
+    local exists = false
+    for _, i in pairs(global.scan.inventories) do
+        if i == inv then
+            exists = true
+        end
+    end
+    if not exists then
+        table.insert(global.scan.inventories, inv)
+    end
+end
+
+local get_ghosts_on_chunk = function(ch)
+    -- Get some variables to work with
+    local surface = get_current_surface()
+    local srf = get_data_surface(surface.surface)
+    -- local ch = get_current_chunk()
+
+    -- Initiate ghost_types array
+    if not srf.ghost_types then
+        srf.ghost_types = {}
+    end
+
+    -- Check if chunk is generated
+    local pos = {ch.x, ch.y}
+    local gf
+    -- if surface.surface.is_chunk_generated(pos) then
+    -- Find all ghosts in the chunk
+    gf = surface.surface.find_entities_filtered({
+        type = const.types.GHOST_ENTITY,
+        area = ch.area
+    })
+    -- end
+
+    -- Safe add ghosts to array
+    if gf and #gf > 0 then
+        for _, g in pairs(gf) do
+            -- Create new array for this ghost type if not exists
+            local itm = get_item_that_places(g)
+            if not srf.ghost_types[itm] then
+                srf.ghost_types[itm] = {
+                    ghosts = {},
+                    storage = {
+                        total_count = 0,
+                        inventories = {},
+                        entities = {}
+                    }
+                }
+            end
+
+            -- Append ghost to array
+            srf.ghost_types[itm].ghosts[g.unit_number] = g
+        end
+    end
+end
+
+local get_storages_on_chunk = function(ch)
+    -- Get some variables to work with
+    local surface = get_current_surface()
+    local srf = get_data_surface(surface.surface)
+    -- local ch = get_current_chunk()
+
+    -- Set up inventories array
+    if not global.scan.inventories then
+        global.scan.inventories = {}
+    end
+
+    -- Check if chunk is generated
+    local pos = {ch.x, ch.y}
+    local sf
+    -- if surface.surface.is_chunk_generated(pos) then
+    -- Get all storage entities
+    sf = surface.surface.find_entities_filtered({
+        type = const.types.INVENTORY,
+        area = ch.area
+    })
+    -- end
+
+    -- Safe add storages to arrays
+    if sf and #sf > 0 then
+        for _, s in pairs(sf) do
+            -- Add storage entity to surfaces storage array
+            if not srf.storage_entities then
+                srf.storage_entities = {}
+            end
+            srf.storage_entities[s.unit_number] = s
+
+            -- Add inventory to scan array
+            local inv = s.get_inventory(defines.inventory.chest)
+            add_scan_inventory(inv)
         end
 
     end
 end
 
-ghost_tracker.tick_update = function()
-    -- Main mechanic
-    -- Loop through surfaces and inventories via array
-    -- When done processing a surface or inventory, pop that from the array
-    -- Start over when the array is empty
-    if #global.scan.surfaces == 0 then
-        -- There are no more surfaces to be processed
+local post_chunk_index = function()
 
-        -- Copy over the scanned data to the public data array and clear scan data array
-        global.data.surfaces = {}
-        if global.scan.data.surfaces and #global.scan.data.surfaces > 0 then
-            for _, srf in pairs(global.scan.data.surfaces) do
-                if #srf.ghost_types > 0 then
-                    table.insert(global.data.surfaces, srf)
+    -- Prepares the data.surface array for furhter processing
+    local surface = get_current_surface()
+    local srf = get_data_surface(surface.surface)
+
+    -- Copy over statistics to settings
+    for _, s in pairs(global.settings.surfaces) do
+        if s.surface == surface.surface then
+            -- Chunks scanned
+            s.num_chunks = surface.chunks_indexed
+        end
+    end
+
+    -- Index all players on the surface
+    for _, p in pairs(game.players) do
+        if p.surface == surface.surface and p.character then
+            local inv = p.get_inventory(defines.inventory.character_main)
+            add_scan_inventory(inv)
+        end
+    end
+
+    -- Generate arrays for ghost.unit_numbers used
+    srf.ghost_indexes = {}
+    for itm, arr in pairs(srf.ghost_types) do
+        table.insert(srf.ghost_indexes, itm)
+    end
+
+    -- Add the surface
+    srf.surface = surface.surface
+
+    -- Empty the inventory array if there are no ghosts
+    if util.arr_cnt(srf.ghost_types) == 0 then
+        global.scan.inventories = {}
+        return
+    end
+
+end
+
+local index_step = function()
+    -- Get some variables to work with
+    local surface = get_current_surface()
+    -- local ch = get_current_chunk()
+    local ch
+    local action = 1
+
+    while action <= settings.global["gh_index-chunks-per-tick"].value do
+        -- Get next chunk
+        ch = get_current_chunk()
+
+        -- Early exit if there are no more chunks remaining
+        if not ch then
+            surface.has_chunks = false
+            break
+        end
+
+        -- Scan the chunk & store data in array
+        get_ghosts_on_chunk(ch)
+        get_storages_on_chunk(ch)
+
+        -- Increase indexes
+        surface.chunks_indexed = (surface.chunks_indexed or 0) + 1
+        global.track.chunks_indexed = (global.track.chunks_indexed or 0) + 1
+        action = action + 1
+
+    end
+
+    -- Post chunk scan actions
+    -- if #surface.chunks == 0 then
+    if not surface.has_chunks then
+        post_chunk_index()
+
+        -- Init for next step
+        global.track.ghost_idx = 1
+    end
+
+end
+
+---------- Scan inventories by step ----------
+local search_inventory_for_ghost = function()
+    -- Get some variables to work with
+    local surface = get_current_surface()
+    local srf = get_data_surface(surface.surface)
+
+    -- log("Scanning surface " .. srf.surface.name .. " #ghosts: " .. util.arr_cnt(srf.ghost_types) .. " #inv: " ..
+    --         util.arr_cnt(srf.storage_entities) .. " - Ghost index: " .. global.track.ghost_idx .. " Inventory index: " ..
+    --         #global.scan.inventories)
+
+    -- Search the current inventory for the current ghost
+    if #global.scan.inventories > 0 then
+        local inv = global.scan.inventories[#global.scan.inventories]
+        if inv and inv.valid then
+            local idx = srf.ghost_indexes[global.track.ghost_idx]
+            local gt = srf.ghost_types[idx]
+
+            if gt then
+
+                -- Check if the inventory contains the ghost item
+                local cnt = inv.get_item_count(idx)
+                if cnt > 0 then
+                    -- Add the inventory to the data array
+                    gt.storage.total_count = gt.storage.total_count + cnt
+                    table.insert(gt.storage.inventories, table.deepcopy(inv)) -- Deepcopy the inv because it will be popped afterwards
+
+                    -- Add owning entities to array
+                    local ste = inv.entity_owner
+                    if ste then
+                        table.insert(gt.storage.entities, ste)
+                    end
+                    local stp = inv.player_owner
+                    if stp and stp.character then
+                        table.insert(gt.storage.entities, stp.character)
+                    end
                 end
             end
         end
-        -- global.data = table.deepcopy(global.scan.data)
-        global.scan.data = {}
+    end
 
-        -- Update settings.surfaces and copy all active surfaces to the surfaces-to-be-scanned array
-        update_settings_surfaces()
-        for _, s in pairs(global.settings.surfaces) do
-            if s.scan then
-                table.insert(global.scan.surfaces, s.surface)
-            end
+    -- Increase the ghost index
+    global.track.ghost_idx = global.track.ghost_idx + 1
+
+    -- Reset ghost index if it exceeded the array length and pop the inventory array
+    if global.track.ghost_idx > #srf.ghost_indexes then
+        global.track.ghost_idx = 1
+        global.scan.inventories[#global.scan.inventories] = nil
+    end
+end
+local scan_step = function()
+    -- Get some variables to work with
+    local action = 1
+
+    while action <= settings.global["gh_scan-actions-per-tick"].value do
+        -- Pop the current surface when we're done
+        if #global.scan.inventories == 0 then
+            pop_current_surface()
+            return
         end
+
+        -- Perform the search action
+        search_inventory_for_ghost()
+
+        -- Increase the indexes
+        global.track.searches_performed = (global.track.searches_performed or 0) + 1
+        action = action + 1
+    end
+end
+
+------------------------------------------------------------------------------------------
+-- Public interfaces
+------------------------------------------------------------------------------------------
+
+----- Progress -----
+ghost_tracker.get_total_chunks = function()
+    return global.track.total_chunks or 1
+end
+
+ghost_tracker.get_chunks_indexed = function()
+    return global.track.chunks_indexed or 0
+end
+
+ghost_tracker.get_total_entities = function()
+    local num_ghosts = 0
+    local num_chests = 0
+    local num_searches = 0
+    for i, srf in pairs(global.data.surfaces) do
+        -- Count current ghosts on this surface
+        local srf_ghosts = 0
+        for itm, gt in pairs(srf.ghost_types) do
+            -- srf_ghosts = srf_ghosts + util.arr_cnt(gt.ghosts)
+            srf_ghosts = srf_ghosts + 1
+            -- silent("Surface: " .. srf.surface.name .. ", itm: " .. itm .. ", ghost cnt: " .. srf_ghosts)
+        end
+        num_ghosts = num_ghosts + srf_ghosts
+
+        -- If there are no ghosts on this surface then we also don't need to count the inventories because the surface won't be scanned
+        -- local srf_chests = 1
+        -- if srf_ghosts > 0 and srf.storage_entities then
+        --     srf_chests = srf_chests + util.arr_cnt(srf.storage_entities)
+        -- end
+        local srf_chests = util.arr_cnt(srf.storage_entities)
+        num_chests = num_chests + srf_chests
+
+        local srf_searches = (srf_ghosts * srf_chests)
+        num_searches = num_searches + srf_searches
+    end
+
+    return num_searches, num_ghosts, num_chests
+end
+
+ghost_tracker.get_num_searches_performed = function()
+    return global.track.searches_performed or 0
+end
+
+ghost_tracker.get_progress = function()
+    -- Returns the progress in a range of 0..1
+
+    -- Get some variables to work with
+
+    -- Indexes
+    local chunks_per_tick = settings.global["gh_index-chunks-per-tick"].value
+    local total_indexes = ghost_tracker.get_total_chunks()
+    local total_index_ticks = math.ceil(total_indexes / chunks_per_tick) -- Total nr of ticks required to index all chunks
+    local current_indexes = ghost_tracker.get_chunks_indexed()
+    local current_index_ticks = math.floor(current_indexes / chunks_per_tick) -- Ticks used so far to index chunks
+
+    -- Searches
+    local searches_per_tick = settings.global["gh_scan-actions-per-tick"].value
+    local total_searches, num_ghosts, num_chests = ghost_tracker.get_total_entities()
+    local total_search_ticks = math.ceil(total_searches / searches_per_tick) -- Total nr of ticks required to search all chests for all ghosts
+    local current_searches = ghost_tracker.get_num_searches_performed()
+    local current_search_ticks = math.floor(current_searches / searches_per_tick) -- Ticks used so far for searching
+
+    -- Totals
+    local total_actions = total_searches + total_indexes
+    local total_ticks = total_index_ticks + total_search_ticks
+    local current_ticks = current_index_ticks + current_search_ticks
+
+    -- If this is the first cycle we perform a full scan we don't know how many chunks/ghosts/inventories there are yet, so the total_actions will return 1
+    if total_actions == 1 then
+        -- Display the progress of surfaces vs total nr of surfaces
+        local num_srf_remain = 0
+        if global.scan.surfaces then
+            num_srf_remain = #global.scan.surfaces
+        end
+        local tot_srf = 0
+        if global.settings.surfaces then
+            tot_srf = #global.settings.surfaces
+        end
+        local surfaces_remaining = math.max(0, tot_srf - num_srf_remain)
+        local total_surfaces = tot_srf + 1
+
+        -- Return the proportion of surfaces processed
+        return surfaces_remaining / total_surfaces, -1
+    else
+        -- silent(
+        --     "Indexes: " .. current_index_ticks .. "/" .. total_index_ticks .. " - Searches: " .. current_search_ticks ..
+        --         "/" .. total_search_ticks)
+        -- silent("Indexes: " .. current_indexes .. "/" .. total_indexes .. " - Searches: " .. current_searches .. "/" ..
+        --            total_searches)
+        return math.min(1, (current_ticks / total_ticks)), total_ticks
+    end
+end
+
+----- Get data -----
+ghost_tracker.get_ghosts_grouped = function(player)
+    -- Return the array
+    return global.data
+end
+
+ghost_tracker.get_ghost_type_on_surface = function(surface_index, ghost_name)
+    for itm, gt in pairs(global.data.surfaces[surface_index].ghost_types) do
+        if itm == ghost_name then
+            return gt
+        end
+    end
+end
+
+----- Scheduled -----
+
+ghost_tracker.tick_update = function()
+    -- Early exit if disabled
+    if not settings.global["gh_enable"].value then
+        return
+    end
+
+    if #global.scan.surfaces == 0 then
+        -- Populate the scan surfaces array with new data
+        update_surfaces()
 
         -- Update the tick count history array
         local tot = 0
@@ -278,84 +526,98 @@ ghost_tracker.tick_update = function()
             tot = tot + prev
         end
 
-        -- Update the average ticks
+        -- Reset scan & index trackers
+        global.track.chunks_indexed = 0
+        global.track.searches_performed = 0 -- Update the average ticks
         global.track.avg_num_ticks_per_cycle = math.ceil(tot / #global.track.history)
 
         -- Reset the first entry
         global.track.history[1] = 0
 
-    elseif #global.scan.inventories == 0 then
-        -- There are no more inventories to be searched
-        index_surface()
+        -- elseif #global.scan.surfaces[#global.scan.surfaces].chunks > 0 then
+    elseif global.scan.surfaces[#global.scan.surfaces].has_chunks then
+        -- Index chunks while there are still chunks left to be indexed
+        index_step()
+
     else
+        -- Perform the scan step
         scan_step()
     end
 
     -- Increase the tick counter
     global.track.history[1] = global.track.history[1] + 1
-
 end
 
 ghost_tracker.init = function()
+
     -- global.scan is used to track the internal class progress
     -- global.scan = {
-    --     track = {
-    --         ghost_idx = 1
-    --     },
-    --     surfaces = {surface},
+    --     surfaces = {{
+    --         surface = surface,
+    --         chunks = {{chunk}, {...}}
+    --     }, {...}},
     --     inventories = {inv},
     --     data = {
     --         surfaces = {
     --             [surface_index] = {
     --                 surface = surface,
-    --                 ghost_types = {{
+    --                 ghost_indexes = {entity.name or entity.items_to_place_this[1].name, ...}
+    --                 ghost_types = {[entity.name or entity.items_to_place_this[1].name] = {
     --                     ghost_name = ghost_name,
     --                     placed_by_item = entity.name or entity.items_to_place_this[1].name,
-    --                     ghosts = {{ghost}, {...}},
+    --                     ghosts = {
+    --                         [entity_id] = {ghost},
+    --                         [i] = {...}
+    --                     },
     --                     storage = {
     --                         total_count = 1,
     --                         inventories = {{inventory}, {...}},
-    --                         storages = {{storage}, {...}}
+    --                         entities = {{entity}, {...}}
     --                     }
     --                 }, {...}},
-    --                 storages = {{storage}, {...}}
+    --                 storage_entities = {
+    --                     [entity_id] = {entity},
+    --                     [i] = {...}
+    --                 }
     --             },
-    --             {...}
+    --             [i] = {...}
     --         }
     --     }
     -- }
+    -- if not global.scan then
+    --     global.scan = {}
+    -- end
+    -- if not global.scan.surfaces then
+    --     global.scan.surfaces = {} -- The surfaces that we still have to scan
+    -- end
+    -- if not global.scan.inventories then
+    --     global.scan.inventories = {} -- The inventories that we still have to scan
+    -- end
+    -- if not global.scan.data then
+    --     global.scan.data = {} -- The resulting array with ghost entity data
+    -- end
+    global.scan = {
+        surfaces = {},
+        inventories = {},
+        data = {}
+    }
 
-    if not global.scan then
-        global.scan = {}
-    end
-    if not global.scan.track then
-        global.scan.track = {}
-    end
-    if not global.scan.surfaces then
-        global.scan.surfaces = {} -- The surfaces that we still have to scan
-    end
-    if not global.scan.inventories then
-        global.scan.inventories = {} -- The inventories that we still have to scan
-    end
-    if not global.scan.data then
-        global.scan.data = {} -- The resulting array with ghost entity data
-    end
+    -- Global.data is the static copy of a completed global.scan.data
+    global.data = {}
 
-    -- Global track is used to keep track of misc stuff
+    -- Global.track is used to track who/what/where/when
+    -- global.track = {
+    --     ghost_idx = 0
+    -- }
+
     if not global.track then
         global.track = {}
     end
-
     if not global.track.history then
         global.track.history = {}
-        for i = 1, 60, 1 do
-            global.track.history[i] = 0
-        end
     end
-
-    -- global.data is the static array which can be used by external parties and a 1:1 structure copy of global.scan.data
-    if not global.data then
-        global.data = {}
+    for i = 1, 10, 1 do
+        global.track.history[i] = 0
     end
 
     -- global.settings is the in game mod settings
@@ -365,7 +627,6 @@ ghost_tracker.init = function()
     if not global.settings.surfaces then
         global.settings.surfaces = {}
     end
-
 end
 
 return ghost_tracker

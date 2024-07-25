@@ -1,4 +1,18 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.4.0
+Date: 2024-07-25
+  Changes:
+    - Performance improvement on indexing & scanning
+    - Updated settings for performance control
+    - Much smoother and more accurate progress bar
+    - Mod settings to show/hide index&scan progress bar
+    - Prevent lag spikes when indexing new surfaces
+---------------------------------------------------------------------------------------------------
+Version: 1.3.1
+Date: 2024-07-25
+  Bugfixes:
+    - Prevent crash on starting new game due to missing array
+---------------------------------------------------------------------------------------------------
 Version: 1.3.0
 Date: 2024-07-25
   Features:

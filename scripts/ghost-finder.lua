@@ -57,7 +57,7 @@ local update_boxes = function(p, gp)
     gp.drew.boxes = {}
 
     -- Add new boxes
-    if game.tick <= gp.track_start + (settings.global["arrow-time-to-live"].value * 60) then
+    if game.tick <= gp.track_start + (settings.global["gh_arrow-time-to-live"].value * 60) then
         for _, e in pairs(gp.track_entities) do
             if e.valid then
                 -- Get box coordinates
@@ -99,7 +99,7 @@ local update_boxes = function(p, gp)
                         y = e.position.y + rightbottom.y
                     },
                     surface = e.surface,
-                    time_to_live = settings.global["arrow-time-to-live"].value * 60
+                    time_to_live = settings.global["gh_arrow-time-to-live"].value * 60
                 })
 
                 -- Store the id in the array
@@ -123,7 +123,7 @@ local update_arrows = function(p, gp)
     gp.drew.arrows = {}
 
     -- Draw new arrows, but only within the time to live window
-    if game.tick <= gp.track_start + (settings.global["arrow-time-to-live"].value * 60) then
+    if game.tick <= gp.track_start + (settings.global["gh_arrow-time-to-live"].value * 60) then
         -- Only if the player is on the same surface
         for _, e in pairs(gp.track_entities) do
             if p.character and p.character.surface == e.surface then
@@ -142,7 +142,7 @@ local update_arrows = function(p, gp)
                                 y = prop.offy
                             },
                             surface = e.surface,
-                            time_to_live = settings.global["arrow-time-to-live"].value * 60,
+                            time_to_live = settings.global["gh_arrow-time-to-live"].value * 60,
                             x_scale = 2,
                             y_scale = 2
                         })

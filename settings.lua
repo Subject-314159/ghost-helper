@@ -8,7 +8,7 @@ data:extend({{
     order = "a1"
 }, {
     type = "int-setting",
-    name = "index-chunks-per-tick",
+    name = "gh_index-chunks-per-tick",
     setting_type = "runtime-global",
     default_value = 500,
     minimum_value = 1,
@@ -16,15 +16,15 @@ data:extend({{
     order = "a1"
 }, {
     type = "int-setting",
-    name = "scan-actions-per-tick",
+    name = "gh_scan-actions-per-tick",
     setting_type = "runtime-global",
-    default_value = 16,
+    default_value = 50,
     minimum_value = 1,
-    maximum_value = 256,
+    maximum_value = 500,
     order = "a1"
 }, {
     type = "int-setting",
-    name = "arrow-time-to-live",
+    name = "gh_arrow-time-to-live",
     setting_type = "runtime-global",
     default_value = 10,
     minimum_value = 1,
@@ -32,8 +32,15 @@ data:extend({{
     order = "a2"
 }, {
     type = "bool-setting",
-    name = "announce-chat",
+    name = "gh_announce-chat",
     setting_type = "runtime-global",
     default_value = true,
+    order = "a3"
+}, {
+    type = "string-setting",
+    name = "gh_show-progress-bar",
+    setting_type = "runtime-global",
+    default_value = "1 sec",
+    allowed_values = {"never", "1 sec", "5 sec", "10 sec", "30 sec", "always"},
     order = "a3"
 }})

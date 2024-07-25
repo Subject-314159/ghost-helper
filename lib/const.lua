@@ -35,4 +35,17 @@ const.types = {
     INVENTORY = {"container", "logistic-container", "infinity-container", "linked-container"}
 }
 
+const.settings = {
+    map = {
+        PROGRESS_BAR_TICKS = {
+            ["never"] = 9999999999,
+            ["1 sec"] = 1 * 60,
+            ["5 sec"] = 5 * 60,
+            ["10 sec"] = 10 * 60,
+            ["30 sec"] = 50 * 60,
+            ["always"] = 0
+        }
+    }
+}
+
 return const

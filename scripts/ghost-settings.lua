@@ -23,8 +23,8 @@ ghost_settings.print_stats = function(player_index)
         end
         num_chunks = num_chunks + (srf.chunk_count or 0)
     end
-    local scan_actions_pt = settings.global["scan-actions-per-tick"].value
-    local chunk_index_pt = settings.global["index-chunks-per-tick"].value
+    local scan_actions_pt = settings.global["gh_scan-actions-per-tick"].value
+    local chunk_index_pt = settings.global["gh_index-chunks-per-tick"].value
     local scan_est = math.ceil((num_ghosts * num_chests) / scan_actions_pt)
     local index_est = math.ceil(num_chunks / chunk_index_pt)
 

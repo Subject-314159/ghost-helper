@@ -1,6 +1,6 @@
 local const = require("lib.const")
 local ghost_gui = require("scripts.ghost-gui")
-local ghost_tracker = require("scripts.ghost-tracker-new")
+local ghost_tracker = require("scripts.ghost-tracker")
 local ghost_settings = require("scripts.ghost-settings")
 local ghost_finder = require("scripts.ghost-finder")
 local global_player = require("scripts.global-player")
