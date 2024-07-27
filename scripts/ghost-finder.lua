@@ -1,10 +1,16 @@
+local const = require("lib.const")
+local timer = require("scripts.timer")
 local global_player = require("scripts.global-player")
+
+require("util")
 
 local ghost_finder = {}
 
-local calculate = function(character, entity)
+------------------------------------------------------------------------------------------
+-- Helper functions
+------------------------------------------------------------------------------------------
 
-    -- Get some variables to work with
+local get_pt = function(character, entity)
     local pt = {
         first = {
             x = character.position.x,
@@ -21,14 +27,34 @@ local calculate = function(character, entity)
         x = pt.first.x - pt.second.x,
         y = pt.second.y - pt.first.y
     }
+    return pt
+end
+
+local get_distance = function(character, entity)
+    local pt = get_pt(character, entity)
+    local distance = math.sqrt(pt.delta.x ^ 2 + pt.delta.y ^ 2) - 0.5
+    return distance
+end
+
+local calculate = function(character, entity)
+
+    -- Get some variables to work with
+    local pt = get_pt(character, entity)
 
     -- Prepare the return array
     local prop = {}
 
     -- Do the calculations
+    -- Angle calculations
     prop.angle_rad = math.atan2(pt.delta.x, pt.delta.y) + (math.pi / 2)
     prop.angle_deg = prop.angle_rad * (180 / math.pi)
-    prop.distance = math.sqrt(pt.delta.x ^ 2 + pt.delta.y ^ 2) - 0.5
+
+    -- Segmented angle
+    local deg_seg = 20
+    local angle_corr = prop.angle_deg - (deg_seg / 2)
+    prop.angle_deg_seg = math.floor((angle_corr) / deg_seg) * deg_seg
+
+    prop.distance = get_distance(character, entity)
     prop.offset = math.min(prop.distance, 5) -- Draw the arrow at max 5 meter
     prop.offx = prop.offset * math.cos(prop.angle_rad)
     prop.offy = prop.offset * math.sin(prop.angle_rad)
@@ -41,118 +67,347 @@ local box_has_area = function(box)
     return box and box.left_top.x < 0 and box.left_top.y < 0 and box.right_bottom.x > 0 and box.right_bottom.y > 0
 end
 
-local update_boxes = function(p, gp)
-    -- Init array
-    if not gp.drew then
-        gp.drew = {}
+local get_angle_corrected = function(angle)
+    return ((angle + 90) / 360) or 0
+end
+
+------------------------------------------------------------------------------------------
+-- Validity check
+------------------------------------------------------------------------------------------
+
+-- update_boxes(p, gp)
+-- update_arrows(p, gp)
+local validate = function(p, gp)
+    -- Early exit if we do not have a character
+    if not p.character then
+        return
     end
 
-    -- Remove old boxes
-    if gp.drew.boxes then
-        for _, b in pairs(gp.drew.boxes) do
-            rendering.destroy(b)
-        end
+    -- Initiate scan array
+    if not gp.scan then
+        gp.scan = {}
     end
-    -- Clear the array
-    gp.drew.boxes = {}
+    if not gp.scan.to_track then
+        gp.scan.to_track = {}
+    end
+    if not gp.to_track then
+        gp.to_track = {}
+    end
 
-    -- Add new boxes
-    if game.tick <= gp.track_start + (settings.global["gh_arrow-time-to-live"].value * 60) then
-        for _, e in pairs(gp.track_entities) do
+    -- Spaced update
+    local action = 1
+
+    while action < 100 do
+        -- Get entity to track index
+        local idx = gp.scan.track_entity_idx or 1
+        if idx > #gp.track_entities then
+            -- All entities analyzed, copy over scan to gp
+            -- for id, prop in pairs(gp.scan.to_track) do
+            --     gp.to_track[id] = prop
+            -- end
+            gp.to_track = gp.scan.to_track
+
+            -- Clear scan.to_track array
+            gp.scan.to_track = {}
+
+            -- Reset index counters
+            gp.scan.track_entity_idx = 1
+        else
+            -- Continue scanning
+            local e = gp.track_entities[idx]
             if e.valid then
-                -- Get box coordinates
-                local ent = e.prototype
-                if e.type == 'entity-ghost' then
-                    ent = e.ghost_prototype
-                end
-                local lefttop = {
-                    x = -0.5,
-                    y = -0.5
-                }
-                local rightbottom = {
-                    x = 0.5,
-                    y = 0.5
-                }
-
-                if ent.selection_box and box_has_area(ent.selection_box) then
-                    lefttop = ent.selection_box.left_top
-                    rightbottom = ent.selection_box.right_bottom
-
-                elseif ent.collision_box and box_has_area(ent.collision_box) then
-                    lefttop = ent.collision_box.left_top
-                    rightbottom = ent.collision_box.right_bottom
-
-                elseif ent.drawing_box and box_has_area(ent.drawing_box) then
-                    lefttop = ent.drawing_box.left_top
-                    rightbottom = ent.drawing_box.right_bottom
+                local prop = calculate(p.character, e)
+                local id = ""
+                local draw_arrow = false
+                local draw_box = false
+                -- Distance based
+                if prop.distance < 100 then
+                    -- Make ID based on entity position
+                    local pos = e.position
+                    id = "entity-x" .. pos.x .. "-y" .. pos.y -- The entity ID
+                    if prop.distance >= 5 then
+                        -- Draw arrow only when further than 5m
+                        draw_arrow = true
+                    else
+                    end
+                    -- Draw box always
+                    draw_box = true
+                else
+                    -- Make ID based on angle segment
+                    id = "angle-seg" .. prop.angle_deg_seg -- The entity ID
+                    draw_arrow = true
                 end
 
-                -- Draw the box
-                local id = rendering.draw_rectangle({
-                    color = {0.8, 0.5, 0},
-                    left_top = {
-                        x = e.position.x + lefttop.x,
-                        y = e.position.y + lefttop.y
-                    },
-                    right_bottom = {
-                        x = e.position.x + rightbottom.x,
-                        y = e.position.y + rightbottom.y
-                    },
-                    surface = e.surface,
-                    time_to_live = settings.global["gh_arrow-time-to-live"].value * 60
-                })
-
-                -- Store the id in the array
-                table.insert(gp.drew.boxes, id)
+                gp.scan.to_track[id] = {
+                    id = id,
+                    entity = e,
+                    prop = prop,
+                    draw_arrow = draw_arrow,
+                    draw_box = draw_box,
+                    last_update = game.tick
+                }
             end
+            -- Increase scan index
+            gp.scan.track_entity_idx = idx + 1
         end
+
+        -- Increase action counter
+        action = action + 1
     end
 
 end
 
-local update_arrows = function(p, gp)
+------------------------------------------------------------------------------------------
+-- Render new
+------------------------------------------------------------------------------------------
 
-    -- Erase all previous arrows
-    if gp.drew.arrows then
-        for _, a in pairs(gp.drew.arrows) do
-            rendering.destroy(a)
+local draw_arrow = function(p, drew)
+
+    local prop = {
+        sprite = "utility/alert_arrow",
+        orientation = get_angle_corrected(drew.data.prop.angle_deg),
+        -- orientation_target = e,
+        target = p.character,
+        target_offset = {
+            x = drew.data.prop.offx,
+            y = drew.data.prop.offy
+        },
+        surface = drew.data.entity.surface,
+        time_to_live = settings.global["gh_arrow-time-to-live"].value * 60,
+        x_scale = 2,
+        y_scale = 2
+    }
+
+    -- Draw & remember the box
+    drew.arrow = rendering.draw_sprite(prop)
+end
+
+local draw_box = function(p, drew)
+
+    -- Get entity
+    local e = drew.data.entity
+
+    -- Get box coordinates
+    local ent = e.prototype
+    if e.type == 'entity-ghost' then
+        ent = e.ghost_prototype
+    end
+    local lefttop = {
+        x = -0.5,
+        y = -0.5
+    }
+    local rightbottom = {
+        x = 0.5,
+        y = 0.5
+    }
+
+    -- Get entity box properties
+    if ent.selection_box and box_has_area(ent.selection_box) then
+        lefttop = ent.selection_box.left_top
+        rightbottom = ent.selection_box.right_bottom
+
+    elseif ent.collision_box and box_has_area(ent.collision_box) then
+        lefttop = ent.collision_box.left_top
+        rightbottom = ent.collision_box.right_bottom
+
+    elseif ent.drawing_box and box_has_area(ent.drawing_box) then
+        lefttop = ent.drawing_box.left_top
+        rightbottom = ent.drawing_box.right_bottom
+    end
+
+    local prop = {
+        color = {0.8, 0.5, 0},
+        left_top = {
+            x = e.position.x + lefttop.x,
+            y = e.position.y + lefttop.y
+        },
+        right_bottom = {
+            x = e.position.x + rightbottom.x,
+            y = e.position.y + rightbottom.y
+        },
+        surface = e.surface,
+        time_to_live = settings.global["gh_arrow-time-to-live"].value * 60
+    }
+
+    -- Draw & remember the box
+    drew.box = rendering.draw_rectangle(prop)
+end
+local update_arrow = function(p, drew)
+    -- Update orientation
+    rendering.set_orientation(drew.arrow, get_angle_corrected(drew.data.prop.angle_deg))
+
+    local target = p.character
+    local target_offset = {
+        x = drew.data.prop.offx,
+        y = drew.data.prop.offy
+    }
+    -- Update offset
+    rendering.set_target(drew.arrow, target, target_offset)
+end
+
+local remove_render = function(gp, drew_id)
+    -- Get some variables to work with
+    local arr = gp.drew[drew_id]
+
+    -- Remove sprites and array entry
+    if arr.arrow then
+        rendering.destroy(arr.arrow)
+    end
+    if arr.box then
+        rendering.destroy(arr.box)
+    end
+    gp.drew[drew_id] = nil
+end
+
+local remove_all_renders = function(player)
+    local gp = global_player.get(player)
+
+    -- Early exit if we did not draw anything
+    if not gp.drew then
+        return
+    end
+
+    -- Remove all renders
+    for id, arr in pairs(gp.drew) do
+        remove_render(gp, id)
+    end
+
+    -- Clear all arrays
+    gp.to_track = {}
+    gp.scan = {}
+end
+
+local draw = function(p, gp)
+    -- Early exit if there is nothing to draw
+    if not gp.to_track then
+        return
+    end
+
+    -- Initiate render array
+    if not gp.drew then
+        gp.drew = {}
+    end
+    if not gp.to_track_indexes then
+        gp.to_track_indexes = {} -- Index translation array 
+    end
+
+    -- Get some variables to work with
+    local threshold = gp.track_start + (settings.global["gh_arrow-time-to-live"].value * 60)
+
+    -- Remove sprites which are no longer required
+    -- Iterate over drew sprites
+    for eid, arr in pairs(gp.drew) do
+        -- Check if we need to track this entity id
+        if not gp.to_track[eid] then
+            remove_render(gp, eid)
+            -- else 
+            --     -- Update the data so we can update the arrow offset/angle later on
+            --     arr.data = to_track[eid]
+            -- --TEMP: Decide where to put this
         end
     end
 
-    -- Reset the arrow array
-    gp.drew.arrows = {}
+    -- Spaced update
+    local action = 1
 
-    -- Draw new arrows, but only within the time to live window
-    if game.tick <= gp.track_start + (settings.global["gh_arrow-time-to-live"].value * 60) then
-        -- Only if the player is on the same surface
-        for _, e in pairs(gp.track_entities) do
-            if p.character and p.character.surface == e.surface then
-                if e.valid then
-                    -- Calculate the angle/distance between player and entity
-                    local prop = calculate(p.character, e)
-                    -- Draw the arrow if it is further away than 5m
-                    if prop.distance >= 5 then
-                        local id = rendering.draw_sprite({
-                            sprite = "utility/alert_arrow",
-                            orientation = (prop.angle_deg + 90) / 360,
-                            -- orientation_target = e,
-                            target = p.character,
-                            target_offset = {
-                                x = prop.offx,
-                                y = prop.offy
-                            },
-                            surface = e.surface,
-                            time_to_live = settings.global["gh_arrow-time-to-live"].value * 60,
-                            x_scale = 2,
-                            y_scale = 2
-                        })
-                        -- Store the id in the array
-                        table.insert(gp.drew.arrows, id)
+    while action < settings.global["gh_track-entities-per-tick"].value do
+        -- Get index
+        local idx = gp.draw_entity_idx or 1
+        if idx > #gp.to_track_indexes then
+            -- Repopulate track indexes
+            local i = 1
+            for id, _ in pairs(gp.to_track) do
+                gp.to_track_indexes[i] = id
+                i = i + 1
+            end
+
+            idx = 1
+        end
+        local id = gp.to_track_indexes[idx]
+        local data = gp.to_track[id]
+
+        -- Only if we have data
+        if data then
+            -- Check if this still needs to be tracked by tick
+            -- local threshold = game.tick - (settings.global["gh_arrow-time-to-live"].value * 60)
+            if data.last_update > threshold then
+                gp.to_track[id] = nil
+            else
+                -- Add/update sprites which are still to be tracked
+                -- Check if the id is new
+                local new = not gp.drew[id]
+                if new then
+                    gp.drew[id] = {}
+                end
+
+                -- Update the data
+                gp.drew[id].data = data
+
+                -- Draw new sprites
+                if new then
+                    -- Draw the new sprite
+                    if data.draw_arrow then
+                        draw_arrow(p, gp.drew[id])
                     end
+                    if data.draw_box then
+                        draw_box(p, gp.drew[id])
+                    end
+
+                end
+
+                -- Update existing arrows
+                if data.draw_arrow then
+                    update_arrow(p, gp.drew[id])
                 end
             end
         end
+
+        gp.draw_entity_idx = idx + 1
+        action = action + 1
     end
+end
+
+local ping = function(player, entity)
+    if entity and entity.valid then
+        player.print(entity.name .. ' at [gps=' .. (entity.position.x) .. ',' .. (entity.position.y) .. ',' ..
+                         entity.surface.name .. ']')
+    end
+end
+
+ghost_finder.set_new_entities_to_track = function(player, entities)
+    -- Early exit if no entities passed
+    if not entities then
+        return
+    end
+
+    -- Get some variables to work with
+    local gp = global_player.get(player)
+    local announce = settings.global["gh_announce-chat"].value
+
+    -- Initiate & fill the array
+    local i = 1
+    if not gp.track_entities then
+        gp.track_entities = {}
+    end
+    gp.track_entities = {}
+    for _, ent in pairs(entities) do
+        gp.track_entities[i] = ent
+        if announce then
+            ping(player, ent)
+        end
+        i = i + 1
+    end
+
+    -- Remove all old annotations
+    remove_all_renders(player)
+
+    -- Set global player stats
+    if not gp.scan then
+        gp.scan = {}
+    end
+    gp.scan.track_entity_idx = 1
+    gp.track_start = game.tick
+
 end
 
 ghost_finder.tick_update = function()
@@ -161,15 +416,31 @@ ghost_finder.tick_update = function()
         return
     end
 
+    -- Get some variables to work with
+    local component = const.settings.measurement.component.ANNOTATE
+
+    -- Update each player
     for _, p in pairs(game.players) do
         -- Get the global player
         local gp = global_player.get(p)
-        if gp.track_start then
-            update_boxes(p, gp)
-            update_arrows(p, gp)
 
+        -- Only if we are inside the time to live window
+        if gp.track_start and game.tick <= gp.track_start + (settings.global["gh_arrow-time-to-live"].value * 60) then
+
+            -- Start timer
+            timer.start_measurement(component)
+
+            -- Do update
+            validate(p, gp)
+            draw(p, gp)
+
+            -- End timer
+            timer.end_measurement(component)
+        else
+            remove_all_renders(p)
         end
     end
+
 end
 
 ghost_finder.init = function()

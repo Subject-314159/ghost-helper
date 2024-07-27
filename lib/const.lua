@@ -1,6 +1,9 @@
 local const = {}
 
 const.gui = {
+    outer = {
+        FRAME = "gh_outer"
+    },
     main = {
         FRAME = "gh_main-frame",
         CAPTION = "gh-gui.main-frame",
@@ -16,6 +19,10 @@ const.gui = {
                 }
             }
         }
+    },
+    settings = {
+        FRAME = "gh_settings-frame",
+        CAPTION = "gh-gui.settings-frame"
     }
 }
 
@@ -44,6 +51,32 @@ const.settings = {
             ["10 sec"] = 10 * 60,
             ["30 sec"] = 50 * 60,
             ["always"] = 0
+        }
+    },
+    measurement = {
+        AVERAGE_COUNT = 30,
+        component = {
+            SURFACE = "surface",
+            INDEX = "index",
+            SEARCH = "search",
+            ANNOTATE = "ghost-finder-annotate"
+        }
+    },
+    tick_actions = {
+        index = {
+            MIN = 1,
+            DEFAULT = 200,
+            MAX = 500
+        },
+        search = {
+            MIN = 1,
+            DEFAULT = 500,
+            MAX = 1000
+        },
+        annotate = {
+            MIN = 1,
+            DEFAULT = 100,
+            MAX = 400
         }
     }
 }

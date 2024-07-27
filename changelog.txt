@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.5.0
+Date: 2024-07-25
+  Changes:
+    - More performance improvements on indexing & scanning
+    - Improved arrow tracking for huge number of entities
+    - Added setting for number of entities to track with arrows per tick
+    - Added settings page adjacent to the main GUI with update timings and settings sliders
+---------------------------------------------------------------------------------------------------
 Version: 1.4.0
 Date: 2024-07-25
   Changes:
