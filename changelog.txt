@@ -1,6 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.1
+Date: 2024-07-28
+  Bugfixes:
+    - Prevent crashes when arrow calculations go south (i.e. exactly 180.000 degree)
+---------------------------------------------------------------------------------------------------
+Version: 1.6.0
+Date: 2024-07-27
+  Changes:
+    - Surfaces are now collapsable
+    - Added settings per surface for auto scanning
+---------------------------------------------------------------------------------------------------
 Version: 1.5.0
-Date: 2024-07-25
+Date: 2024-07-27
   Changes:
     - More performance improvements on indexing & scanning
     - Improved arrow tracking for huge number of entities

@@ -84,7 +84,8 @@ script.on_event(defines.events.on_gui_leave, function(e)
 end)
 
 script.on_event({defines.events.on_gui_elem_changed, defines.events.on_gui_value_changed,
-                 defines.events.on_gui_text_changed}, function(e)
+                 defines.events.on_gui_text_changed, defines.events.on_gui_checked_state_changed,
+                 defines.events.on_gui_switch_state_changed}, function(e)
     gui_is_outer_callback(e, ghost_gui.on_change)
 end)
 

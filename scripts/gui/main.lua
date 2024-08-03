@@ -11,6 +11,15 @@ local gui_main = {}
 -- COMPONENTS
 ---------------------------------------------------------------------------
 
+local add_closing_line = function(element)
+    if not element.closing_line then
+        local ln = element.add {
+            type = "line",
+            name = "closing_line"
+        }
+        ln.style.top_padding = 10
+    end
+end
 ---------------------------------------------------------------------------
 -- UPDATE
 ---------------------------------------------------------------------------
@@ -22,42 +31,60 @@ gui_main.update = function(player)
         return
     end
 
-    -- Show/hide content based on global enable/disable
-    if settings.global["gh_enable"].value then
-        gui.progress.visible = true
-        gui.pane.visible = true
-        gui.disabled.visible = false
-    else
-        gui.progress.visible = false
-        gui.pane.visible = false
-        gui.disabled.visible = true
-    end
-
     -- Get the information to work with
     local data = helper.get_ghosts_grouped(player)
-    local tb_str = "" -- TEMP
-
-    -- Set the generic progress bar
+    local gp = global_player.get(player)
     local progress, ticks_required = helper.get_progress()
 
-    if ticks_required == -1 or ticks_required >
-        const.settings.map.PROGRESS_BAR_TICKS[settings.global["gh_show-progress-bar"].value] then
+    -- Set the generic progress bar
+    gui.progress.value = progress
+    if (ticks_required == -1 or ticks_required >
+        const.settings.map.PROGRESS_BAR_TICKS[settings.global["gh_show-progress-bar"].value]) and
+        settings.global["gh_enable"].value then
         gui.progress.visible = true
-        gui.progress.value = progress
     else
         -- Hide the progress bar if update cycle is less than 1sec
         gui.progress.visible = false
     end
 
+    -- Show/hide content based on global enable/disable
+    if settings.global["gh_enable"].value and #data.surfaces ~= 0 then
+
+        -- Show main frame conten
+        gui.frame.pane.main_frame.visible = true
+
+        -- Hide message frame
+        gui.frame.pane.message_frame.visible = false
+
+    else
+        -- Hide main content
+        gui.frame.pane.main_frame.visible = false
+
+        -- Show message frame
+        gui.frame.pane.message_frame.visible = true
+
+        if not settings.global["gh_enable"].value then
+            gui.progress.visible = false
+            gui.frame.pane.message_frame.no_ghosts.visible = false
+            gui.frame.pane.message_frame.disabled.visible = true
+        else
+            gui.frame.pane.message_frame.no_ghosts.visible = true
+            gui.frame.pane.message_frame.disabled.visible = false
+        end
+
+        -- No need to continue
+        return
+    end
+
     -- Remove surface frames in the gui if there are no entries in the data array for it
-    for _, frm in pairs(gui.pane.main_frame.children) do
+    for _, frm in pairs(gui.frame.pane.main_frame.children) do
         local exists = false
         for idx, srf in pairs(data.surfaces) do
             if frm.name == const.gui.main.surface.PREFIX .. srf.surface.index then
                 exists = true
             end
         end
-        if frm.name ~= "no_ghosts" and not exists then
+        if frm.name ~= "no_ghosts" and frm.name ~= "disabled" and not exists then
             frm.destroy()
         end
     end
@@ -67,38 +94,86 @@ gui_main.update = function(player)
         -- Add surface frames in the gui if there is none yet
         local exists = false
         local srf_frm
-        for _, frm in pairs(gui.pane.main_frame.children) do
+        for _, frm in pairs(gui.frame.pane.main_frame.children) do
             if frm.name == const.gui.main.surface.PREFIX .. srf.surface.index then
                 srf_frm = frm
                 exists = true
             end
         end
         if not exists then
-            local srf_frm = gui.pane.main_frame.add {
-                type = "frame",
-                name = const.gui.main.surface.PREFIX .. srf.surface.index,
-                style = "gh_surface_frame",
-                direction = "vertical"
+            local tag = {
+                surface_index = srf.surface.index
             }
-            srf_frm.add {
-                type = "label",
+            srf_frm = gui.frame.pane.main_frame.add {
+                -- type = "frame",
+                -- style = "bonus_card_frame",
+                type = "flow",
+                name = const.gui.main.surface.PREFIX .. srf.surface.index,
+                -- style = "subpanel_frame",
+                direction = "vertical",
+                tags = tag
+            }
+            srf_frm.style.padding = 10
+            local hdr = srf_frm.add {
+                type = "flow",
                 name = const.gui.main.surface.label.PREFIX .. srf.surface.index,
+                style = "player_input_horizontal_flow"
+            }
+            hdr.add {
+                type = "sprite-button",
+                name = "expand_surface",
+                -- style = "frame_action_button",
+                -- sprite = "gh_settings"
+                sprite = "utility/collapse",
+                hovered_sprite = "utility/collapse_dark",
+
+                style = "control_settings_section_button"
+            }
+            hdr.add {
+                type = "label",
+                name = "surface_caption",
                 caption = "Ghosts on " .. srf.surface.name,
                 style = "gh_surface_name_label"
             }
+            srf_frm.add {
+                type = "table",
+                name = "tbl",
+                style = "gh_ghost_table",
+                column_count = 1,
+                -- draw_horizontal_lines = true,
+                vertical_centering = false
+            }
+            add_closing_line(srf_frm)
         end
 
         if srf_frm then
+            -- Toggle frame visibility based on player expanded toggle
+            local expanded = true
+            local id = srf_frm.tags.surface_index
+            local btn = srf_frm[const.gui.main.surface.label.PREFIX .. id].expand_surface
+            if gp.surface_collapsed then
+                expanded = not gp.surface_collapsed[id]
+            end
+            if expanded then
+                btn.sprite = "utility/collapse"
+                btn.hovered_sprite = "utility/collapse_dark"
+                srf_frm.tbl.visible = true
+            else
+                btn.sprite = "utility/expand"
+                btn.hovered_sprite = "utility/expand_dark"
+                srf_frm.tbl.visible = false
+            end
 
             -- Loop through labels and remove ones no longer applicable
-            for _, lbl in pairs(srf_frm.children) do
+            for _, lbl in pairs(srf_frm.tbl.children) do
                 local exists = false
                 for itm, gt in pairs(srf.ghost_types) do
                     if lbl.name == const.gui.main.surface.ghost_frame.PREFIX .. itm then
                         exists = true
                     end
                 end
-                if lbl.name ~= const.gui.main.surface.label.PREFIX .. srf.surface.index and not exists then
+                if lbl.name ~= const.gui.main.surface.label.PREFIX .. srf.surface.index and lbl.name ~= "no_ghosts" and
+                    lbl.name ~= "destroy" and not exists then
                     lbl.destroy()
                 end
             end
@@ -107,7 +182,7 @@ gui_main.update = function(player)
             for itm, gt in pairs(srf.ghost_types) do
                 local exists = false
                 local fr
-                for _, frm in pairs(srf_frm.children) do
+                for _, frm in pairs(srf_frm.tbl.children) do
                     if frm.name == const.gui.main.surface.ghost_frame.PREFIX .. itm then
                         fr = frm
                         exists = true
@@ -119,11 +194,12 @@ gui_main.update = function(player)
                         entity = itm
                     }
                     -- Create the container frame
-                    fr = srf_frm.add {
-                        type = "frame",
+                    fr = srf_frm.tbl.add {
+                        type = "flow",
+                        -- type = "frame",
+                        -- style = "gh_ghost_frame",
                         name = const.gui.main.surface.ghost_frame.PREFIX .. itm, -- Ghost Frame
-                        direction = "vertical",
-                        style = "gh_ghost_frame"
+                        direction = "vertical"
                     }
 
                     local ifr = fr.add {
@@ -252,13 +328,19 @@ gui_main.update = function(player)
         end
     end
 
-    local cnt = 0
-
-    if #data.surfaces == 0 then
-        gui.pane.main_frame.no_ghosts.visible = true
-    else
-        gui.pane.main_frame.no_ghosts.visible = false
+    -- remove closing line from last surface frame
+    local last
+    for _, c in pairs(gui.frame.pane.main_frame.children) do
+        if c.name ~= "no_ghosts" and c.name ~= "disable" then
+            add_closing_line(c)
+        end
+        last = c
     end
+    if last and last.closing_line then
+        last.closing_line.destroy()
+    end
+
+    local cnt = 0
 
 end
 
@@ -302,6 +384,7 @@ gui_main.build = function(player)
         name = const.gui.main.FRAME,
         -- caption = {const.gui.main.CAPTION},
         direction = "vertical"
+        -- style = "gh_main_window"
     }
 
     -- Title bar flow
@@ -311,7 +394,8 @@ gui_main.build = function(player)
         name = "gh_settings",
         style = "frame_action_button",
         -- sprite = "gh_settings"
-        sprite = "arrow-right"
+        sprite = "utility/side_menu_menu_icon",
+        hovered_sprite = "utility/side_menu_menu_hover_icon"
     }
 
     -- Progress bar
@@ -323,27 +407,62 @@ gui_main.build = function(player)
     gui.progress.style.horizontally_stretchable = "on"
     gui.progress.style.height = 10
 
-    -- Main content
     gui.add {
+        type = "frame",
+        name = "frame",
+        -- style = "window_content_frame_deep"
+        style = "inside_shallow_frame"
+    }
+    -- Main content
+    gui.frame.add {
         type = "scroll-pane",
         name = "pane",
         horizontal_scroll_policy = "never",
-        vertical_scroll_policy = "auto",
-        style = "gh_main_pane"
+        vertical_scroll_policy = "auto"
+        -- style = "gh_main_pane"
+        -- style = "control_settings_scroll_pane"
     }
+    gui.frame.style.width = 305
+    gui.frame.style.maximal_height = 600
 
-    gui.pane.add {
+    local fr = gui.frame.pane.add {
         type = "flow",
         name = "main_frame",
-        direction = "vertical",
-        style = "gh_main_frame"
+        direction = "vertical"
+        -- style = "gh_main_frame"
+
     }
-    gui.pane.main_frame.add {
+    fr.style.top_padding = 8
+    fr.style.bottom_padding = 8
+
+    local msg = gui.frame.pane.add {
+        type = "flow",
+        name = "message_frame",
+        direction = "vertical"
+        -- style = "gh_main_frame"
+    }
+    msg.style.horizontally_stretchable = "on"
+
+    local ng = gui.frame.pane.message_frame.add {
+        type = "frame",
+        name = "no_ghosts",
+        style = "subpanel_frame",
+        direction = "vertical"
+    }
+    ng.style.horizontally_stretchable = "on"
+    ng.add {
         type = "label",
         name = "no_ghosts",
         caption = "No ghosts found in enabled surfaces"
     }
-    gui.add {
+    local dis = gui.frame.pane.message_frame.add {
+        type = "frame",
+        name = "disabled",
+        style = "subpanel_frame",
+        direction = "vertical"
+    }
+    dis.style.horizontally_stretchable = "on"
+    dis.add {
         type = "label",
         name = "disabled",
         caption = "Ghost Helper is disabled in mod settings"

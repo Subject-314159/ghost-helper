@@ -51,6 +51,22 @@ local copy_clean_data = function()
     }
 end
 
+local ignore_surface = function(name)
+    for _, srf in pairs(const.settings.ignore.SURFACES) do
+        if srf == name then
+            return true
+        end
+    end
+
+    for _, pre in pairs(const.settings.ignore.SURFACE_PREFIXES) do
+        if name:sub(1, #pre) == pre then
+            return true
+        end
+    end
+
+    return false
+end
+
 local update_settings_surfaces = function()
 
     -- Reset track total chunks to scan
@@ -62,28 +78,38 @@ local update_settings_surfaces = function()
         for _, ss in pairs(global.settings.surfaces) do
             if ss.surface == s then
                 exists = true
+                break
             end
         end
-        if not exists then
+        if not exists and not ignore_surface(s.name) then
+            local scan = settings.global["gh_scan-new-surfaces"].value
             local prop = {
-                scan = true,
+                scan = scan,
+                expand = true,
                 surface = s,
                 num_chunks = 0
                 -- num_ghosts = 0,
                 -- num_inventories = 0
             }
             table.insert(global.settings.surfaces, prop)
-            game.print("[Ghost helper] New surface detected: " .. s.name)
+            local option
+            if scan then
+                option = "auto scanning for ghosts & chests"
+            else
+                option = "not included in auto scan"
+            end
+            game.print("[Ghost helper] New surface detected: " .. s.name .. ", " .. option)
             -- Future idea: Add mod setting to auto enable/disable scan new surfaces
         end
     end
 
     -- Validate existing surfaces
-    for _, ss in pairs(global.settings.surfaces) do
-        if not ss.surface.valid then
+    for i, ss in pairs(global.settings.surfaces) do
+        if not ss.surface.valid or ignore_surface(ss.surface.name) then
             -- Remove global settings surfaces if they no longer exists
-            game.print("[Ghost helper] Surface no longer exists: " .. ss.name)
-            ss = nil
+            local name = ss.surface.name or "<unknown>"
+            game.print("[Ghost helper] Surface no longer valid for tracking: " .. name)
+            global.settings.surfaces[i] = nil
         elseif ss.scan then
             -- Sum total number of chunks to be scanned
             global.track.total_chunks = global.track.total_chunks + (ss.num_chunks or 0)

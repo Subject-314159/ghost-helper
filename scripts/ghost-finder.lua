@@ -68,6 +68,9 @@ local box_has_area = function(box)
 end
 
 local get_angle_corrected = function(angle)
+    if not angle then
+        return 0
+    end
     return ((angle + 90) / 360) or 0
 end
 
@@ -162,6 +165,10 @@ end
 ------------------------------------------------------------------------------------------
 
 local draw_arrow = function(p, drew)
+    -- Early exit if we already drew this one
+    if drew and drew.arrow and rendering.is_valid(drew.arrow) then
+        return
+    end
 
     local prop = {
         sprite = "utility/alert_arrow",
@@ -182,7 +189,20 @@ local draw_arrow = function(p, drew)
     drew.arrow = rendering.draw_sprite(prop)
 end
 
+local remove_arrow = function(p, drew)
+    if not drew or not drew.arrow then
+        return
+    end
+    if rendering.is_valid(drew.arrow) then
+        rendering.destroy(drew.arrow)
+    end
+end
+
 local draw_box = function(p, drew)
+    -- Early exit if we already drew this one
+    if drew and drew.box and rendering.is_valid(drew.box) then
+        return
+    end
 
     -- Get entity
     local e = drew.data.entity
@@ -233,6 +253,16 @@ local draw_box = function(p, drew)
     drew.box = rendering.draw_rectangle(prop)
 end
 local update_arrow = function(p, drew)
+    -- Sanity check
+    if not drew or not drew.arrow then
+        game.print("Not drawn")
+        return
+    end
+    if not rendering.is_valid(drew.arrow) then
+        game.print("Not valid")
+        return
+    end
+
     -- Update orientation
     rendering.set_orientation(drew.arrow, get_angle_corrected(drew.data.prop.angle_deg))
 
@@ -300,10 +330,6 @@ local draw = function(p, gp)
         -- Check if we need to track this entity id
         if not gp.to_track[eid] then
             remove_render(gp, eid)
-            -- else 
-            --     -- Update the data so we can update the arrow offset/angle later on
-            --     arr.data = to_track[eid]
-            -- --TEMP: Decide where to put this
         end
     end
 
@@ -320,6 +346,8 @@ local draw = function(p, gp)
                 gp.to_track_indexes[i] = id
                 i = i + 1
             end
+
+            -- game.print(serpent.line(gp.to_track_indexes))
 
             idx = 1
         end
@@ -344,21 +372,18 @@ local draw = function(p, gp)
                 gp.drew[id].data = data
 
                 -- Draw new sprites
-                if new then
-                    -- Draw the new sprite
-                    if data.draw_arrow then
-                        draw_arrow(p, gp.drew[id])
-                    end
-                    if data.draw_box then
-                        draw_box(p, gp.drew[id])
-                    end
-
-                end
-
-                -- Update existing arrows
+                -- if new then
+                -- Draw the new sprite
                 if data.draw_arrow then
+                    draw_arrow(p, gp.drew[id])
                     update_arrow(p, gp.drew[id])
+                else
+                    remove_arrow(p, gp.drew[id])
                 end
+                if data.draw_box then
+                    draw_box(p, gp.drew[id])
+                end
+
             end
         end
 
@@ -396,6 +421,12 @@ ghost_finder.set_new_entities_to_track = function(player, entities)
             ping(player, ent)
         end
         i = i + 1
+    end
+
+    -- Warn player when tracking more ghosts than can be handled in one tick update
+    if i > settings.global["gh_track-entities-per-tick"].value then
+        player.print("[Ghost Handler] WARNING: Tracking large amount of entities (" .. i ..
+                         ") may result in hampering arrow accuracy")
     end
 
     -- Remove all old annotations

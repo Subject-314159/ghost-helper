@@ -45,6 +45,12 @@ data:extend({{
     default_value = true,
     order = "a3"
 }, {
+    type = "bool-setting",
+    name = "gh_scan-new-surfaces",
+    setting_type = "runtime-global",
+    default_value = true,
+    order = "a3"
+}, {
     type = "string-setting",
     name = "gh_show-progress-bar",
     setting_type = "runtime-global",

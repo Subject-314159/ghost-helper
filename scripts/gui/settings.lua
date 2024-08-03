@@ -12,10 +12,6 @@ local gui_settings = {}
 -- COMPONENTS
 ---------------------------------------------------------------------------
 
----------------------------------------------------------------------------
--- UPDATE
----------------------------------------------------------------------------
-
 local function update_setting(setting_flow)
 
     local sl = setting_flow.slider
@@ -41,6 +37,40 @@ local function update_setting(setting_flow)
     end
 end
 
+local function add_surface(container, srf)
+    local sname = srf.surface.name
+    local flow = container.add {
+        type = "flow",
+        name = "srf-" .. sname,
+        direction = "horizontal"
+    }
+    local state = "left"
+    if srf.scan then
+        state = "right"
+    end
+    local tag = {
+        surface_name = sname
+    }
+    flow.add {
+        type = "checkbox",
+        name = "enable_srf",
+        state = srf.scan,
+        caption = srf.surface.name
+    }
+end
+
+local get_toggle_value = function(bool)
+    if bool then
+        return "right"
+    else
+        return "left"
+    end
+end
+
+---------------------------------------------------------------------------
+-- UPDATE
+---------------------------------------------------------------------------
+
 gui_settings.update = function(player)
     -- Update settings gui if it is open
     local sgui = gutil.get_settings_gui(player)
@@ -56,11 +86,39 @@ gui_settings.update = function(player)
     -- SURFACES
     ----------------------------------------
 
-    local srf = "Surfaces being scanned:  "
-    for _, s in pairs(global.settings.surfaces) do
-        srf = srf .. s.surface.name .. ",  "
+    -- Update auto enable toggle value
+    cs.header.setting.auto_add_new_surfaces.switch_state = get_toggle_value(
+        settings.global["gh_scan-new-surfaces"].value)
+
+    -- Remove surfaces that no longer exist
+    for _, flow in pairs(cs.surfaces.children) do
+        local exists = false
+        for _, s in pairs(global.settings.surfaces) do
+            if flow.name == "srf-" .. s.surface.name then
+                exists = true
+                break
+            end
+        end
+        if not exists then
+            flow.destroy()
+        end
     end
-    cs.surface_info.caption = srf
+
+    -- Add/update surface settings
+    for _, s in pairs(global.settings.surfaces) do
+        local exists = false
+        local flowname = "srf-" .. s.surface.name
+        for _, flow in pairs(cs.surfaces.children) do
+            if flow.name == flowname then
+                exists = true
+                break
+            end
+        end
+        if not exists then
+            add_surface(cs.surfaces, s)
+        end
+        -- cs.surfaces[flowname].enable_srf.state = s.scan
+    end
 
     ----------------------------------------
     -- SETTINGS
@@ -130,10 +188,10 @@ gui_settings.build = function(player)
         name = const.gui.settings.FRAME,
         direction = "vertical"
     }
-    gui.style.minimal_width = 300
-    gui.style.minimal_height = 500
+    -- gui.style.minimal_width = 300
+    -- gui.style.maximal_height = 500
     gui.style.horizontally_stretchable = "on"
-    gui.style.vertically_stretchable = "on"
+    -- gui.style.vertically_stretchable = "on"
 
     -- Title bar
     gutil.add_generic_title_bar(gui, {const.gui.settings.CAPTION})
@@ -152,7 +210,7 @@ gui_settings.build = function(player)
         style = "tabbed_pane_with_no_side_padding"
     }
     tabs.style.horizontally_stretchable = "on"
-    tabs.style.vertically_stretchable = "on"
+    -- tabs.style.vertically_stretchable = "on"
 
     -- =======================
     -- Surfaces tab
@@ -165,18 +223,47 @@ gui_settings.build = function(player)
     }
     local cs = tabs.add {
         type = "flow",
-        name = "content_surfaces"
+        name = "content_surfaces",
+        direction = "vertical"
     }
     cs.style.margin = 10
     tabs.add_tab(ts, cs)
 
     cs.add {
-        type = "label",
-        name = "surface_info",
-        caption = "Foo"
+        type = "flow",
+        name = "header",
+        direction = "vertical"
     }
-    cs.surface_info.style.single_line = false
-    cs.surface_info.style.maximal_width = 300
+    cs.header.add {
+        type = "label",
+        caption = "Changes may take up to two cycles in order to take effect"
+    }
+    local set_flow = cs.header.add {
+        type = "flow",
+        name = "setting",
+        direction = "horizontal"
+    }
+    set_flow.add {
+        type = "switch",
+        name = "auto_add_new_surfaces"
+    }
+    set_flow.add {
+        type = "label",
+        caption = "Auto scan new surfaces"
+    }
+    cs.add {
+        type = "line"
+    }
+    cs.add {
+        type = "label",
+        caption = "Scan surfaces",
+        style = "bold_label"
+    }
+    cs.add {
+        type = "flow",
+        name = "surfaces",
+        direction = "vertical"
+    }
 
     -- =======================
     -- Mod settings tab

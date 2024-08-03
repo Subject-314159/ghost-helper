@@ -54,6 +54,14 @@ end
 -- GUI INTERACTION
 ---------------------------------------------------------------------------
 
+local get_switch_bool = function(element)
+    if element.switch_state == "right" then
+        return true
+    else
+        return false
+    end
+end
+
 local start_crafting = function(player, recipe, count)
     player.begin_crafting({
         recipe = recipe,
@@ -106,6 +114,40 @@ local process_gui_action = function(element, player, action)
                 }
             end
         end
+    elseif element.name == "auto_add_new_surfaces" then
+        if action == "changed" then
+            -- Update mod settings
+            settings.global["gh_scan-new-surfaces"] = {
+                value = get_switch_bool(element)
+            }
+        end
+    elseif element.name == "enable_srf" then
+        if action == "changed" then
+            -- Search for the surface setting
+            for _, ss in pairs(global.settings.surfaces) do
+                if ss.surface.name == element.caption then
+                    -- Update the setting according to the switch
+                    ss.scan = element.state -- get_switch_bool(element)
+                    break
+                end
+            end
+        end
+    elseif element.name == "expand_surface" and action == "click" then
+        -- Get variables
+        local expanded = false
+        if element.sprite == "utility/collapse" then
+            expanded = true
+        end
+        local pp = element.parent.parent
+        local idx = pp.tags.surface_index
+        if not idx then
+            return
+        end
+
+        if not gp.surface_collapsed then
+            gp.surface_collapsed = {}
+        end
+        gp.surface_collapsed[idx] = expanded
     end
 end
 
@@ -144,6 +186,11 @@ ghost_gui.init = function()
     if game then
         for _, p in pairs(game.players) do
             gui_main.destroy(p)
+
+            -- Legacy destroy old frame
+            if p.gui.left["gh_main-frame"] then
+                p.gui.left["gh_main-frame"].destroy()
+            end
         end
     end
 
