@@ -1,12 +1,13 @@
 {
   "name": "ghost-helper",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "title": "Ghost helper",
   "author": "Subject31415",
   "factorio_version": "1.1",
   "dependencies": [
     "base >= 1.1",
-    "BetterAlertArrows"
+    "BetterAlertArrows",
+    "arrowlib"
   ],
   "description": "Keep track of ghosts, find required items in storage nearby and quickly craft required items"
 }

@@ -1,6 +1,7 @@
 local const = require("lib.const")
 local timer = require("scripts.timer")
 local global_player = require("scripts.global-player")
+local arrow = require("__arrowlib__/arrow")
 
 require("util")
 
@@ -447,6 +448,9 @@ ghost_finder.tick_update = function()
         return
     end
 
+    -- Update tracking arrows
+    arrow.tick_update()
+
     -- Get some variables to work with
     local component = const.settings.measurement.component.ANNOTATE
 
@@ -475,7 +479,8 @@ ghost_finder.tick_update = function()
 end
 
 ghost_finder.init = function()
-
+    -- Init arrow
+    arrow.init()
 end
 
 return ghost_finder
