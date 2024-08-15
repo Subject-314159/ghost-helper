@@ -1,8 +1,28 @@
 local styles = data.raw["gui-style"].default
 
-styles["main_pane"] = {
+-- Generic
+
+styles["gh_titlebar_flow"] = {
+    type = "horizontal_flow_style",
+    horizontal_spacing = 8
+}
+
+styles["gh_titlebar_drag_handle"] = {
+    type = "empty_widget_style",
+    parent = "draggable_space",
+    left_margin = 4,
+    right_margin = 4,
+    height = 24,
+    horizontally_stretchable = "on"
+}
+
+-- Outer
+
+styles["gh_main_pane"] = {
     type = "scroll_pane_style",
+    parent = "control_settings_scroll_pane",
     horizontally_stretchable = "on",
+    vertically_stretchable = "on",
     maximal_height = 600,
     width = 305,
     padding = 0,
@@ -16,7 +36,17 @@ styles["main_pane"] = {
     }
 }
 
-styles["main_frame"] = {
+-- Main GUI
+
+styles["gh_ghost_table"] = {
+    type = "table_style",
+    parent = "control_settings_bordered_table",
+    cell_padding = 0
+}
+
+-- OLD
+
+styles["gh_main_frame"] = {
     type = "vertical_flow_style",
     horizontally_stretchable = "on",
     vertically_stretchable = "on",
@@ -24,9 +54,10 @@ styles["main_frame"] = {
     border = {}
 }
 
-styles["surface_frame"] = {
+styles["gh_surface_frame"] = {
     type = "frame_style",
-    parent = "captionless_frame",
+    -- parent = "captionless_frame",
+    parent = "subpanel_frame",
     padding = 8,
     horizontal_flow_style = {
         type = "horizontal_flow_style",
@@ -36,21 +67,21 @@ styles["surface_frame"] = {
     graphical_set = {}
 }
 
-styles["surface_name_label"] = {
+styles["gh_surface_name_label"] = {
     type = "label_style",
     parent = "label",
     font = "heading-2",
     padding = 3
 }
 
-styles["ghost_frame"] = {
+styles["gh_ghost_frame"] = {
     type = "frame_style",
     parent = "inside_shallow_frame",
     padding = 0,
     margin = 0
 }
 
-styles["ghost_frame_red"] = {
+styles["gh_ghost_frame_red"] = {
     type = "frame_style",
     parent = "inside_shallow_frame",
     padding = 3,
@@ -63,7 +94,7 @@ styles["ghost_frame_red"] = {
     }
 }
 
-styles["ghost_frame_green"] = {
+styles["gh_ghost_frame_green"] = {
     type = "frame_style",
     parent = "inside_shallow_frame",
     padding = 3,
@@ -76,7 +107,7 @@ styles["ghost_frame_green"] = {
     }
 }
 
-styles["ghost_frame_orange"] = {
+styles["gh_ghost_frame_orange"] = {
     type = "frame_style",
     parent = "inside_shallow_frame",
     padding = 3,
@@ -89,3 +120,5 @@ styles["ghost_frame_orange"] = {
     }
 
 }
+
+-- Settings GUI
