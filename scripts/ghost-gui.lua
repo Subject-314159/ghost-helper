@@ -23,10 +23,12 @@ local toggle_settings_gui = function(player_index)
         return
     end
 
+
     -- Toggle the gui
     if gutil.get_settings_gui(player) then
         -- Destroy the gui because it is open
         gui_settings.destroy(player)
+
     else
         -- Show the gui because it is closed
         gui_settings.build(player)
