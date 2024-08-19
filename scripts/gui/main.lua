@@ -275,10 +275,17 @@ gui_main.update = function(player)
                     game.print("Oops, no table found for " .. itm)
                 end
 
+                -- Get the recipe
+                local rec = itm
+                if rec and not game.recipe_prototypes[rec] then
+                    -- TODO: Loop through recipes to see if there is one with our output item
+                    rec = nil
+                end
+
                 -- Do some calculations
                 local delta = util.arr_cnt(gt.ghosts) - gt.storage.total_count
-                local craftable = (player.controller_type ~= defines.controllers.editor) and
-                                      (player.get_craftable_count(itm) or 0) or 0
+                local craftable = (player.controller_type ~= defines.controllers.editor) and rec and
+                                      (player.get_craftable_count(rec) or 0) or 0
                 local threshold = math.min(delta, craftable)
 
                 -- Set background tint
