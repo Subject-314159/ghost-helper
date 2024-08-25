@@ -67,7 +67,7 @@ end
 local function gui_is_outer_callback(e, fn)
     if gui_match(e, const.gui.outer.FRAME) then
         local elm = e.element
-        local player = game.players[e.player_index]
+        local player = game.get_player(e.player_index)
         fn(elm, player)
     end
 end
@@ -94,7 +94,7 @@ end)
 ---------------------------------------------------------------------------
 
 script.on_event(defines.events.on_lua_shortcut, function(e)
-    local player = game.players[e.player_index]
+    local player = game.get_player(e.player_index)
     if not player then
         return
     end
